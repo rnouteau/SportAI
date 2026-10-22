@@ -1,1 +1,4 @@
 .venv
+datasets
+*.csv
+*.mp4
