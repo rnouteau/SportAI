@@ -8,7 +8,7 @@ import csv
 import pandas as pd
 from pathlib import Path
 
-class BallAnnotator:
+class BallAnnotatorApplication:
     def __init__(self, config, root):
 
         self.root = root
@@ -125,7 +125,7 @@ if __name__ == "__main__":
     print(config)
 
     root = Tk()
-    app = BallAnnotator(config,root)
+    app = BallAnnotatorApplication(config,root)
     root.mainloop()
 
 
