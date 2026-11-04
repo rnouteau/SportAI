@@ -8,13 +8,9 @@ class TennisBall(Ball):
         super().__init__(data)
 
     @property
-    def velocity(self):
+    def velocity(self) -> float | None:
         return self.data.get("velocity", None)
 
-    @property
-    def position(self):
-        return self.data.get("position",None)
-
-    @position.setter
-    def position(self, value):
-        self.data["position"] = value
+    @velocity.setter
+    def velocity(self, value : float | None):
+        self.data["velocity"] = value

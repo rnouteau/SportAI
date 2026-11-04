@@ -7,11 +7,7 @@ from pipeline.objects.tennis.tennis_player_at_frame import TennisPlayerAtFrame
 
 class TennisFrame(Frame):
     def __init__(self, data : dict):
-        super().__init__()
-
-    @property
-    def id(self):
-        return self.data.get("id", None)
+        super().__init__(data)
     
     @property
     def players(self) -> list[TennisPlayerAtFrame]:
@@ -22,3 +18,8 @@ class TennisFrame(Frame):
     def ball(self) -> TennisBall | None:
         ball_data = self.data.get("ball", None)
         return TennisBall(ball_data) if ball_data else None
+
+    @ball.setter
+    def ball(self, ball: TennisBall | None):
+        self.data["ball"] = ball.data if ball else None
+

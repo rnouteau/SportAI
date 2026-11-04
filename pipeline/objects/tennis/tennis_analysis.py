@@ -1,10 +1,9 @@
 
 
-from pipeline.Analysis import Analysis
+from pipeline.objects.analysis import Analysis
+from pipeline.objects.tennis.tennis_frame import TennisFrame
 
 
-class TennisAnalysis(Analysis):
-    def __init__(self, config):
-        super().__init__(config)
-        self.create_frame()
+class TennisAnalysis(Analysis[TennisFrame]):
+    frame_class = TennisFrame
 

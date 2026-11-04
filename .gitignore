@@ -3,3 +3,5 @@ datasets
 *.csv
 *.mp4
 *.pyc
+*.pt
+*.json

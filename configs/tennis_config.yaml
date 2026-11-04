@@ -1,9 +1,10 @@
 models:
-  - name: ball_model
-    options:
-stats:
-  - name: ball_stats
-    options:
+  - name: pipeline.models.tennis.TennisBallModel
+    config:
+      device: "cuda"
+      threshold: 0.5
+      weight: "./models/TENNIS_BALL_MODEL_04_11_2026.pt"
+# stats:
+#   - name: ball_stats
 outputs:
-  - dir: ./outputs/tennis
-    options:
+  dir: ./outputs/tennis

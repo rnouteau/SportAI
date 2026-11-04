@@ -8,9 +8,7 @@ from loguru import logger
 class ExampleStat(Stat):
     def __init__(self):
         super().__init__()
-
-    def setup(self):
-        logger.info("ExampleStat")
+        logger.info("ExampleStat initialized")
 
     def run(self, video_reader: VideoReader, analysis : TennisAnalysis):
         logger.info("Running ExampleStat")
