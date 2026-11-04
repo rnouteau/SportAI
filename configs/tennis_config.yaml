@@ -1,0 +1,9 @@
+models:
+  - name: ball_model
+    options:
+stats:
+  - name: ball_stats
+    options:
+outputs:
+  - dir: ./outputs/tennis
+    options:

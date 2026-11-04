@@ -1,0 +1,3 @@
+
+class VideoReader:
+    pass
