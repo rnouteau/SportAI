@@ -11,7 +11,7 @@ from pipeline.video_reader import VideoReader
 
 FrameT= TypeVar(name="FrameT",bound=Frame)
 class Analysis(ABC,Generic[FrameT]):
-    frame_class = type(FrameT)
+    frame_class : type[FrameT]
 
     def __init__(self, data: dict):
         self.data = data

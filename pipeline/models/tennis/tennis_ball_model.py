@@ -11,7 +11,6 @@ import cv2
 class TennisBallModel(Model):
     def __init__(self, config):
         super().__init__(config)
-        print(self.config)
         logger.info("TennisBallModel initialized")
         self.weight = self.config.get("weight", None)
         self.device = self.config.get("device", "cpu")

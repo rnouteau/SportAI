@@ -7,4 +7,4 @@ models:
 # stats:
 #   - name: ball_stats
 outputs:
-  dir: ./outputs/tennis
+  path: ./outputs/tennis/stats.json
