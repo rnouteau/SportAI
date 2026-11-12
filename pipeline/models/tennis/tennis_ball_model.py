@@ -13,7 +13,10 @@ class TennisBallModel(Model):
         super().__init__(config)
         logger.info("TennisBallModel initialized")
         self.weight = self.config.get("weight", None)
-        self.device = self.config.get("device", "cpu")
+        self.device = self.config.get("device","cpu")
+        if self.device.startswith("cuda") and not torch.cuda.is_available():
+            logger.warning("cuda is not available,using cpu instead")
+            self.device = "cpu"
         self.model = torch.jit.load(self.weight, map_location=self.device).eval() if self.weight else None
         self.threshold = self.config.get("threshold", 0.5)
         self.input_size = self.config.get("input_size", (288, 512))

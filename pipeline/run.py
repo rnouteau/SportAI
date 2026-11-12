@@ -33,6 +33,7 @@ def run_pipeline(sport,video_path,config,test=False):
             script.run(video_reader, analysis)
         except Exception as e:
             logger.exception(f"Error occurred while running model {model_name}: {e}")
+            raise
 
     video_reader.release()
 

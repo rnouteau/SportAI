@@ -5,3 +5,4 @@ datasets
 *.pyc
 *.pt
 *.json
+!tests/baselines/*.json

@@ -4,3 +4,17 @@ models:
       device: "cuda"
       threshold: 0.5
       weight: "./models/TENNIS_BALL_MODEL_04_11_2026.pt"
+dataset:
+  local_dir: ./datasets/tennis/ball_detection/test
+  repo_id: rnouteau/sportai-test-data
+  revision: v1
+  subset: tennis/ball_detection/test
+weights:
+  repo_id: rnouteau/sportai-models
+  filename: tennis/ball/TENNIS_BALL_MODEL_04_11_2026.pt
+evaluation:
+  min_dist: 10
+regression:
+  baseline: tests/baselines/tennis_ball_tracking.json
+  metrics: [Accuracy, Precision, Recall, F1-Score]
+  tolerance: 0.005

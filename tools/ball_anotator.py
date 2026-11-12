@@ -101,14 +101,16 @@ class BallAnnotatorApplication:
         self.video_panel.delete('line_tag')
 
     def import_annotations(self):
-        annotations_path = f'{self.directory}/{self.video_name}.csv'
+        annotations_path = f"{self.directory}/{self.video_name}.csv"
         if os.path.exists(annotations_path):
-            data = pd.read_csv(annotations_path, header=None, skiprows=1)
-            for row in data.iloc():
-                self.annotations[row[0]] = (row[1],row[2])
+            data = pd.read_csv(annotations_path).dropna(subset=["x", "y"])
+            for row in data.itertuples(index=False):
+                self.annotations[int(row.frame)] = (row.x, row.y)
 
     def export_annotations(self,event):
-        pd.DataFrame.from_dict(self.annotations, orient='index', columns=["x", "y"]).to_csv(f'{self.directory}/{self.video_name}.csv', index_label="frame")
+        df = pd.DataFrame.from_dict(self.annotations, orient="index", columns=["x", "y"])
+        df = df.reindex(range(self.frame_count))
+        df.to_csv(f"{self.directory}/{self.video_name}.csv", index_label="frame")
 
 
 if __name__ == "__main__":
