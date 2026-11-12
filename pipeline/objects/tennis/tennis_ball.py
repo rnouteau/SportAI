@@ -1,10 +1,8 @@
-
-
 from pipeline.objects.ball import Ball
 
 
 class TennisBall(Ball):
-    def __init__(self, data: dict):
+    def __init__(self, data: dict) -> None:
         super().__init__(data)
 
     @property
@@ -12,5 +10,5 @@ class TennisBall(Ball):
         return self.data.get("velocity", None)
 
     @velocity.setter
-    def velocity(self, value : float | None):
+    def velocity(self, value: float | None) -> None:
         self.data["velocity"] = value

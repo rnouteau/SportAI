@@ -1,5 +1,6 @@
 .venv
 datasets
+outputs
 *.csv
 *.mp4
 *.pyc

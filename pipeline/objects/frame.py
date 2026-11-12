@@ -1,11 +1,5 @@
-
-
-from pipeline.objects.ball import Ball
-from pipeline.objects.player_at_frame import PlayerAtFrame
-
-
-class Frame():
-    def __init__(self,data : dict):
+class Frame:
+    def __init__(self, data: dict) -> None:
         self.data = data
 
     @property
@@ -13,6 +7,5 @@ class Frame():
         return self.data.get("id", None)
 
     @id.setter
-    def id(self, value : int) -> None:
+    def id(self, value: int) -> None:
         self.data["id"] = value
-

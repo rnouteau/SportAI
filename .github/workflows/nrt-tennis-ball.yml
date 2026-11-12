@@ -15,7 +15,7 @@ on:
   workflow_dispatch:
     inputs:
       update_baseline:
-        description: "Régénérer la baseline (à télécharger dans les artefacts puis commiter)"
+        description: "Regenerate the baseline (download it from the artifacts, then commit it)"
         type: boolean
         default: false
 
@@ -51,7 +51,7 @@ jobs:
 
       - name: Skip notice (no HF token)
         if: env.HF_TOKEN == ''
-        run: echo "::warning::HF_TOKEN absent (PR depuis un fork ?) - test NRT non exécuté"
+        run: echo "::warning::HF_TOKEN missing (PR from a fork?) - NRT test not run"
 
       - name: Publish summary
         if: always()

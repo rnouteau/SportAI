@@ -1,18 +1,17 @@
-
+from loguru import logger
 
 from pipeline.objects.tennis.tennis_analysis import TennisAnalysis
 from pipeline.stats.stat import Stat
 from pipeline.video_reader import VideoReader
-from loguru import logger
+
 
 class ExampleStat(Stat):
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
         logger.info("ExampleStat initialized")
 
-    def run(self, video_reader: VideoReader, analysis : TennisAnalysis):
+    def run(self, video_reader: VideoReader, analysis: TennisAnalysis) -> None:
         logger.info("Running ExampleStat")
-        # Implement the logic for the stat here
         for frame in analysis.frames:
-            pass
-    
+            if frame.ball:
+                logger.info(f"frame {frame.id}: ball at {frame.ball.position}")

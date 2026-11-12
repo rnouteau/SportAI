@@ -1,4 +1,3 @@
-
 from abc import ABC, abstractmethod
 
 from pipeline.objects.analysis import Analysis
@@ -6,8 +5,9 @@ from pipeline.video_reader import VideoReader
 
 
 class Stat(ABC):
-    def __init__(self):
+    def __init__(self) -> None:
         pass
+
     @abstractmethod
-    def run(self,video_reader : VideoReader, analysis : Analysis):
+    def run(self, video_reader: VideoReader, analysis: Analysis) -> None:
         pass

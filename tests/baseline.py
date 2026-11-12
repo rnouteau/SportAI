@@ -1,4 +1,3 @@
-
 import json
 from pathlib import Path
 
@@ -32,22 +31,27 @@ def compare_to_baseline(current: dict, baseline: dict, tolerance: float) -> list
         if baseline["context"].get(key) != value
     ]
     if context_problems:
-        return context_problems + ["Le contexte du run a changé : régénérez la baseline avec --update-baseline"]
+        return context_problems + [
+            "The run context changed: regenerate the baseline with --update-baseline"
+        ]
 
-    problems = []
-    current_videos, baseline_videos = current["videos"], baseline["videos"]
+    problems: list[str] = []
+    current_videos = current["videos"]
+    baseline_videos = baseline["videos"]
 
     for video in sorted(baseline_videos.keys() - current_videos.keys()):
-        problems.append(f"{video} : vidéo présente dans la baseline mais absente du run")
+        problems.append(f"{video}: video in the baseline but missing from the run")
     for video in sorted(current_videos.keys() - baseline_videos.keys()):
-        problems.append(f"{video} : vidéo absente de la baseline")
+        problems.append(f"{video}: video missing from the baseline")
 
     for video in sorted(current_videos.keys() & baseline_videos.keys()):
         for metric, value in current_videos[video].items():
             expected = baseline_videos[video].get(metric)
             if expected is None:
-                problems.append(f"{video} {metric} : métrique absente de la baseline")
+                problems.append(f"{video} {metric}: metric missing from the baseline")
             elif abs(value - expected) > tolerance:
-                problems.append(f"{video} {metric} : {expected:.4f} -> {value:.4f} ({value - expected:+.4f})")
+                problems.append(
+                    f"{video} {metric}: {expected:.4f} -> {value:.4f} ({value - expected:+.4f})"
+                )
 
     return problems

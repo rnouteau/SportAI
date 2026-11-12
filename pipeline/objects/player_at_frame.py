@@ -1,5 +1,3 @@
-
-
 class PlayerAtFrame:
-    def __init__(self, data: dict):
+    def __init__(self, data: dict) -> None:
         self.data = data
