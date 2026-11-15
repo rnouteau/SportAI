@@ -21,10 +21,11 @@ The first implemented sport is **tennis**, with a ball detection model based on 
 11. [Tools](#11-tools)
 12. [Training and exporting a model](#12-training-and-exporting-a-model)
 13. [Tests and baselines](#13-tests-and-baselines)
-14. [GitHub Actions](#14-github-actions)
-15. [Hugging Face assets](#15-hugging-face-assets)
-16. [How to extend the project](#16-how-to-extend-the-project)
-17. [Troubleshooting](#17-troubleshooting)
+14. [Lint and pre-commit](#14-lint-and-pre-commit)
+15. [GitHub Actions](#15-github-actions)
+16. [Hugging Face assets](#16-hugging-face-assets)
+17. [How to extend the project](#17-how-to-extend-the-project)
+18. [Troubleshooting](#18-troubleshooting)
 
 ---
 
@@ -53,7 +54,7 @@ SportAI/
 │   ├── run.py                        # Orchestrator (CLI entrypoint)
 │   ├── video_reader.py               # OpenCV video wrapper
 │   ├── models/
-│   │   ├── model.py                  # Abstract Model base class
+│   │   ├── model.py                  # Abstract Model[AnalysisT] base
 │   │   └── tennis/
 │   │       └── tennis_ball_model.py  # TrackNet TorchScript ball detector
 │   ├── objects/                      # Typed views over the analysis JSON
@@ -65,7 +66,7 @@ SportAI/
 │   │       ├── tennis_ball.py
 │   │       └── tennis_player_at_frame.py
 │   └── stats/
-│       ├── stat.py                   # Abstract Stat base class
+│       ├── stat.py                   # Abstract Stat[AnalysisT] base
 │       └── tennis/
 │           └── example_stat.py
 ├── tests/
@@ -78,7 +79,7 @@ SportAI/
 │   │   ├── test_tennis_ball.py
 │   │   ├── test_analysis_json.py
 │   │   ├── test_ball_metrics.py
-│   │   ├── test_ball_metrics_properties.py
+│   │   ├── test_ball_metrics_properties.py  # Hypothesis invariants
 │   │   └── test_baseline.py
 │   ├── baselines/tennis/
 │   │   └── tennis_ball_tracking.json # Committed reference metrics
@@ -102,10 +103,12 @@ SportAI/
 ├── .github/
 │   ├── actions/publish-wiki/         # Composite action: render + push wiki
 │   └── workflows/
-│       ├── pr-tests.yml              # CI: unit (always) + nrt (filtered)
+│       ├── pr-tests.yml              # CI: unit + lint (parallel) + nrt (filtered)
 │       └── nrt-nightly.yml           # Full NRT on main (cron + manual)
+├── pyproject.toml                    # Ruff + mypy config
+├── .pre-commit-config.yaml           # Local hooks (ruff, mypy, file hygiene)
 ├── requirements.txt
-├── requirements-test.txt
+├── requirements-test.txt             # pytest, hypothesis, ruff, mypy, pre-commit, HF
 └── pytest.ini
 ```
 
@@ -116,8 +119,9 @@ SportAI/
 | `pipeline/` | Run models on videos, produce analysis JSON | Yes |
 | `trains/` | Train and export model weights | No (produces `.pt` artefacts only) |
 | `tools/` | Human annotation / video cutting GUIs | No |
-| `tests/unit/` | Fast pure-logic tests (no video / model / HF) | CI on every PR |
+| `tests/unit/` | Fast pure-logic tests (no video / model / HF) | CI job `unit` on every PR |
 | `tests/nrt/` | Slow model non-regression vs baseline | CI when inference paths change |
+| Lint / pre-commit | Ruff + mypy (+ file hygiene hooks) | CI job `lint` (parallel with `unit`) |
 
 Production never imports training code. The only link between `trains/` and `pipeline/` is a TorchScript `.pt` file.
 
@@ -131,23 +135,28 @@ Production never imports training code. The only link between `trains/` and `pip
 
 | Method / attribute | Meaning |
 |--------------------|---------|
-| `path`, `fps`, `width`, `height`, `frame_count` | Video metadata |
+| `video_path`, `fps`, `width`, `height`, `frame_count` | Video metadata |
 | `info()` | Dict written into the analysis JSON under `"video"` |
 | `read_frame(i)` | Seek to frame `i` and return a BGR `np.ndarray` |
 | `release()` | Close the capture |
 
 ### Model
 
-Every model inherits from `pipeline.models.model.Model`:
+Every model inherits from `pipeline.models.model.Model`, which is generic over the analysis type:
 
 ```python
-class Model(ABC):
+class Model(ABC, Generic[AnalysisT]):
     def __init__(self, config: dict) -> None: ...
-    def run(self, video_reader: VideoReader, analysis: Analysis) -> None: ...
+    def run(self, video_reader: VideoReader, analysis: AnalysisT) -> None: ...
+
+
+class TennisBallModel(Model[TennisAnalysis]):
+    def run(self, video_reader: VideoReader, analysis: TennisAnalysis) -> None: ...
 ```
 
 - `__init__(config)` loads weights and stores options (`device`, `threshold`, …).
 - `run(...)` reads frames from the video and writes predictions into `analysis.frames`.
+- The type parameter ties each model to its sport analysis (`TennisAnalysis`, future `FootballAnalysis`, …) so mypy stays aligned with Liskov.
 
 Models are loaded dynamically from the config by fully-qualified class path:
 
@@ -159,11 +168,15 @@ Models are loaded dynamically from the config by fully-qualified class path:
 
 ### Stat
 
-Same contract as models:
+Same generic contract as models:
 
 ```python
-class Stat(ABC):
-    def run(self, video_reader: VideoReader, analysis: Analysis) -> None: ...
+class Stat(ABC, Generic[AnalysisT]):
+    def run(self, video_reader: VideoReader, analysis: AnalysisT) -> None: ...
+
+
+class ExampleStat(Stat[TennisAnalysis]):
+    def run(self, video_reader: VideoReader, analysis: TennisAnalysis) -> None: ...
 ```
 
 Stats read filled frames (`for frame in analysis.frames`) and write derived values (into `analysis.data["stats"]` or logs). They do not run neural nets.
@@ -336,7 +349,7 @@ Training code lives under `trains/` and pulls datasets, losses, optimizers, etc.
 Stats consume a filled `Analysis`. Example:
 
 ```python
-class ExampleStat(Stat):
+class ExampleStat(Stat[TennisAnalysis]):
     def run(self, video_reader, analysis: TennisAnalysis) -> None:
         for frame in analysis.frames:
             if frame.ball:
@@ -424,10 +437,11 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-For tests / CI extras:
+For tests, lint, and CI extras (`pytest`, `hypothesis`, `ruff`, `mypy`, `pre-commit`, HF hub, …):
 
 ```bash
 pip install -r requirements-test.txt
+pre-commit install   # once per clone: run hooks on every git commit
 ```
 
 On CI (and optionally locally for CPU-only), install the CPU build of PyTorch first:
@@ -557,7 +571,7 @@ There are two pytest markers (see `pytest.ini`):
 
 | Marker | Folder | Speed | Needs video / weights / HF? | Purpose |
 |--------|--------|-------|-----------------------------|---------|
-| `unit` | `tests/unit/` | Seconds | No | Pure logic: objects, JSON I/O, metrics, baseline compare |
+| `unit` | `tests/unit/` | Seconds | No | Pure logic: objects, JSON I/O, metrics, baseline compare, Hypothesis invariants |
 | `nrt` | `tests/nrt/` | ~15–20 min / clip | Yes | Full pipeline on annotated clips vs committed baseline |
 
 ```bash
@@ -677,13 +691,40 @@ outputs/tests/tennis_ball_tracking/report.json
 
 ---
 
-## 14. GitHub Actions
+## 14. Lint and pre-commit
+
+Config lives in [`pyproject.toml`](pyproject.toml) (Ruff + mypy) and [`.pre-commit-config.yaml`](.pre-commit-config.yaml).
+
+| Tool | Scope | What it does |
+|------|-------|--------------|
+| Ruff check | `pipeline/`, `tests/`, `scripts/`, `utils/` | Lint (E/W/F/I/B/UP); `trains/` and `tools/` excluded |
+| Ruff format | same | Consistent formatting (`line-length = 100`) |
+| Mypy | `pipeline/` only | Type-check; `ignore_missing_imports = true`; not `--strict` yet |
+| pre-commit hooks | staged files | `trailing-whitespace`, `end-of-file-fixer`, `check-yaml`, `check-added-large-files`, then ruff + mypy |
+
+Local commands:
+
+```bash
+# Same checks as the CI lint job
+ruff check pipeline tests scripts utils
+ruff format --check pipeline tests scripts utils
+mypy --config-file=pyproject.toml pipeline
+
+# Or via pre-commit (after pre-commit install)
+pre-commit run --all-files
+```
+
+The CI job **`lint`** runs these checks in parallel with **`unit`**. The NRT job waits for both to succeed.
+
+---
+
+## 15. GitHub Actions
 
 Two workflows:
 
 | Workflow | File | Role |
 |----------|------|------|
-| **Tests** | [`.github/workflows/pr-tests.yml`](.github/workflows/pr-tests.yml) | Unit on every relevant PR/push; NRT only when NRT paths change (or manual) |
+| **Tests** | [`.github/workflows/pr-tests.yml`](.github/workflows/pr-tests.yml) | `unit` + `lint` in parallel; NRT when NRT paths change (or manual) |
 | **NRT Nightly** | [`.github/workflows/nrt-nightly.yml`](.github/workflows/nrt-nightly.yml) | Full NRT on `main` every night (no path filter) |
 
 Model scores from the latest NRT on `main` are published to the repository **Wiki → Home** page (auto-generated from `report.json`).
@@ -796,7 +837,7 @@ If `WIKI_TOKEN` is missing or `report.json` was not produced, the publish step w
 
 ---
 
-## 15. Hugging Face assets
+## 16. Hugging Face assets
 
 Large binaries are not in git (see `.gitignore`: `*.mp4`, `*.csv`, `*.pt`, `datasets/`).
 
@@ -833,14 +874,15 @@ Keep test clips short (5–15 seconds). On CPU, TrackNet processes only a few fr
 
 ---
 
-## 16. How to extend the project
+## 17. How to extend the project
 
 ### Add a new model (e.g. player detection)
 
-1. Create `pipeline/models/tennis/tennis_player_model.py` inheriting from `Model`.
-2. In `run`, write into frames, e.g. via a future `frame.add_player(...)` or by appending to `frame.data["players"]`.
-3. Export the class from `pipeline/models/tennis/__init__.py`.
-4. Add an entry under `models:` in the YAML:
+1. Create `pipeline/models/tennis/tennis_player_model.py` inheriting from `Model[TennisAnalysis]`.
+2. Implement `run(self, video_reader, analysis: TennisAnalysis)`.
+3. In `run`, write into frames, e.g. via a future `frame.add_player(...)` or by appending to `frame.data["players"]`.
+4. Export the class from `pipeline/models/tennis/__init__.py`.
+5. Add an entry under `models:` in the YAML:
 
 ```yaml
 - name: pipeline.models.tennis.TennisPlayerModel
@@ -853,9 +895,10 @@ No change to `run.py`.
 
 ### Add a new stat
 
-1. Create `pipeline/stats/tennis/my_stat.py` inheriting from `Stat`.
-2. Read `analysis.frames`, write into `analysis.data.setdefault("stats", {})`.
-3. Export it and list it under `stats:` in the config (enable the stats loop in `run.py` if still commented).
+1. Create `pipeline/stats/tennis/my_stat.py` inheriting from `Stat[TennisAnalysis]`.
+2. Implement `run(self, video_reader, analysis: TennisAnalysis)`.
+3. Read `analysis.frames`, write into `analysis.data.setdefault("stats", {})`.
+4. Export it and list it under `stats:` in the config (enable the stats loop in `run.py` if still commented).
 
 ### Add a new sport
 
@@ -872,7 +915,7 @@ No change to `run.py`.
 
 ---
 
-## 17. Troubleshooting
+## 18. Troubleshooting
 
 | Symptom | Likely cause | Fix |
 |---------|--------------|-----|
@@ -885,6 +928,9 @@ No change to `run.py`.
 | NRT takes ~15–20 min for one 825-frame clip | Three `cap.set` seeks per frame | Known limitation; a sliding-window sequential reader would speed this up. |
 | `from tests...` import fails | Another installed package named `tests` | Run via `python -m pytest` from the repo root (`pytest.ini` sets `pythonpath = .`). |
 | Cannot commit the baseline JSON | `.gitignore` has `*.json` | Exception already present: `!tests/baselines/**/*.json`. |
+| pre-commit / CI `lint` fails on mypy `[override]` | Subclass narrowed `Analysis` without generics | Inherit `Model[TennisAnalysis]` / `Stat[TennisAnalysis]` (see §3). |
+| pre-commit fails then “files were modified” | Auto-fix hooks (whitespace, ruff format) | Re-stage and commit again; or run `pre-commit run --all-files` once. |
+| Wiki Home not updated after NRT on `main` | Missing `WIKI_TOKEN` or wiki not bootstrapped | Enable Wikis, create a first page, add the PAT secret. |
 
 ---
 
@@ -903,6 +949,12 @@ python tools/ball_anotator.py --video_path clip.mp4
 
 # Fast unit tests (no video / model)
 python -m pytest tests/unit -m unit -q
+
+# Lint (same as CI job lint)
+ruff check pipeline tests scripts utils
+ruff format --check pipeline tests scripts utils
+mypy --config-file=pyproject.toml pipeline
+# or: pre-commit run --all-files
 
 # Non-regression test (CPU, slow)
 $env:SPORTAI_DEVICE="cpu"
