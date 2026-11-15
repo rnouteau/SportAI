@@ -96,8 +96,13 @@ SportAI/
 │   ├── paths.py                      # Project root helper
 │   ├── read_yaml.py
 │   └── video_downloader.py           # yt-dlp helper
-├── .github/workflows/
-│   └── tests.yml                     # CI: unit (always) + nrt (filtered)
+├── scripts/
+│   └── render_wiki_home.py           # report.json + nrt-history → Wiki Home.md
+├── .github/
+│   ├── actions/publish-wiki/         # Composite action: render + push wiki
+│   └── workflows/
+│       ├── pr-tests.yml              # CI: unit (always) + nrt (filtered)
+│       └── nrt-nightly.yml           # Full NRT on main (cron + manual)
 ├── requirements.txt
 ├── requirements-test.txt
 └── pytest.ini
@@ -672,7 +677,16 @@ outputs/tests/tennis_ball_tracking/report.json
 
 ## 14. GitHub Actions
 
-Workflow: [`.github/workflows/tests.yml`](.github/workflows/tests.yml) (workflow name: **Tests**)
+Two workflows:
+
+| Workflow | File | Role |
+|----------|------|------|
+| **Tests** | [`.github/workflows/pr-tests.yml`](.github/workflows/pr-tests.yml) | Unit on every relevant PR/push; NRT only when NRT paths change (or manual) |
+| **NRT Nightly** | [`.github/workflows/nrt-nightly.yml`](.github/workflows/nrt-nightly.yml) | Full NRT on `main` every night (no path filter) |
+
+Model scores from the latest NRT on `main` are published to the repository **Wiki → Home** page (auto-generated from `report.json`).
+
+### Tests (`pr-tests.yml`)
 
 | Trigger | When |
 |---------|------|
@@ -708,7 +722,7 @@ Uses `dorny/paths-filter`. Sets `nrt=true` only when one of these changes:
 - `tests/baselines/**`
 - `tests/evaluation/**`
 - `requirements*.txt`
-- `.github/workflows/tests.yml`
+- `.github/workflows/pr-tests.yml`
 
 A PR that only touches `pipeline/objects/` or `tests/baseline.py` / `tests/unit/` runs **unit only**.
 
@@ -726,16 +740,49 @@ Then:
 3. `pytest tests/nrt/tennis -m nrt` with `SPORTAI_DEVICE=cpu`
 4. Append `report.md` to the GitHub Step Summary
 5. Upload artefacts: report folder + `tests/baselines/tennis/tennis_ball_tracking.json`
+6. On `main` only: publish Wiki Home via [`.github/actions/publish-wiki`](.github/actions/publish-wiki)
 
 `update_baseline` from `workflow_dispatch` is passed only to this job.
 
-Required repository secret:
+Required repository secrets:
 
 | Secret | Purpose |
 |--------|---------|
 | `HF_TOKEN` | Read-only Hugging Face token to download the private dataset and model weights |
+| `WIKI_TOKEN` | PAT that can push to the repo wiki (`repo` classic, or fine-grained with wiki write) |
 
 If `HF_TOKEN` is missing (e.g. PR from a fork), the NRT step is skipped with a warning instead of failing.
+
+### NRT Nightly (`nrt-nightly.yml`)
+
+Runs the full ball-tracking NRT on the default branch (`main`) without the path filter.
+
+| Trigger | When |
+|---------|------|
+| `schedule` | `0 2 * * *` (02:00 UTC daily) |
+| `workflow_dispatch` | Manual run from the Actions tab |
+
+Same CPU torch install, HF cache, pytest NRT command, step summary, artefact upload, and **wiki Home publish** as the NRT job in **Tests**. If `HF_TOKEN` is missing, the workflow **fails** (unlike PR forks, where a skip is acceptable).
+
+### Wiki Home (model results)
+
+After each NRT on `main` (nightly, push, or manual), CI regenerates the wiki **Home** page from `outputs/tests/tennis_ball_tracking/report.json` using [`scripts/render_wiki_home.py`](scripts/render_wiki_home.py).
+
+The page includes:
+
+- latest run status and context (device, weights, dataset revision, …)
+- a **Mermaid line chart** of TOTAL `F1-Score` vs date (one point per NRT publish)
+- a short history table, plus full metrics / TP-FP-TN-FN for the latest run
+
+History is stored in the wiki repo as `nrt-history.json` (not in SportAI git), capped at the last 120 points, with dedup by Actions run URL or commit+day. **PR NRT runs do not update the wiki.**
+
+One-time bootstrap:
+
+1. Repo Settings → Features → enable **Wikis**
+2. Create any first page in the Wiki UI (so `*.wiki.git` exists)
+3. Add repository secret `WIKI_TOKEN` (PAT with wiki push access)
+
+If `WIKI_TOKEN` is missing or `report.json` was not produced, the publish step warns and skips.
 
 ---
 
@@ -810,7 +857,7 @@ No change to `run.py`.
 ### Add a new NRT suite
 
 1. Copy the tennis NRT config / test / baseline pattern.
-2. Add a matrix line in `.github/workflows/tests.yml` (or a dedicated workflow).
+2. Add a matrix line in `.github/workflows/pr-tests.yml` (or a dedicated workflow).
 3. Point `dataset` / `weights` / `regression.baseline` at the new assets.
 
 ---

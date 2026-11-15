@@ -9,7 +9,7 @@ on:
       - "utils/**"
       - "requirements*.txt"
       - "pytest.ini"
-      - ".github/workflows/tests.yml"
+      - ".github/workflows/pr-tests.yml"
   push:
     branches: [main]
   workflow_dispatch:
@@ -57,7 +57,7 @@ jobs:
               - 'tests/baselines/**'
               - 'tests/evaluation/**'
               - 'requirements*.txt'
-              - '.github/workflows/tests.yml'
+              - '.github/workflows/pr-tests.yml'
 
   nrt:
     needs: [unit, changes]
@@ -112,3 +112,15 @@ jobs:
             outputs/tests/tennis_ball_tracking
             tests/baselines/tennis/tennis_ball_tracking.json
           if-no-files-found: ignore
+
+      - name: Publish wiki Home
+        if: always() && github.ref == 'refs/heads/main'
+        uses: ./.github/actions/publish-wiki
+        with:
+          report_json: outputs/tests/tennis_ball_tracking/report.json
+          token: ${{ secrets.WIKI_TOKEN }}
+          commit: ${{ github.sha }}
+          run_url: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          workflow: ${{ github.workflow }}
+          conclusion: ${{ job.status }}
+          tolerance: "0.005"
