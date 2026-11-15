@@ -73,13 +73,13 @@ SportAI/
 │   ├── baseline.py                   # Build / compare metric baselines
 │   ├── conftest.py                   # pytest --update-baseline
 │   ├── evaluation/                   # Shared evaluators (used by unit + NRT)
-│   │   └── tennis/tennis_ball_tracking.py
+│   │   └── ball_tracking.py          # BallTrackingEvaluator
 │   ├── unit/                         # Fast pure-logic tests (@pytest.mark.unit)
 │   │   ├── test_tennis_ball.py
 │   │   ├── test_analysis_json.py
 │   │   ├── test_ball_metrics.py
 │   │   └── test_baseline.py
-│   ├── baselines/
+│   ├── baselines/tennis/
 │   │   └── tennis_ball_tracking.json # Committed reference metrics
 │   ├── configs/nrt/tennis/
 │   │   └── config_test_tennis_accuracy_ball_tracking.yaml
@@ -97,7 +97,7 @@ SportAI/
 │   ├── read_yaml.py
 │   └── video_downloader.py           # yt-dlp helper
 ├── .github/workflows/
-│   └── nrt-tennis-ball.yml           # CI: unit (always) + nrt (filtered)
+│   └── tests.yml                     # CI: unit (always) + nrt (filtered)
 ├── requirements.txt
 ├── requirements-test.txt
 └── pytest.ini
@@ -384,7 +384,7 @@ weights:
 evaluation:
   min_dist: 10                # pixels: max distance to count a true positive
 regression:
-  baseline: tests/baselines/tennis_ball_tracking.json
+  baseline: tests/baselines/tennis/tennis_ball_tracking.json
   metrics: [Accuracy, Precision, Recall, F1-Score]
   tolerance: 0.005
 ```
@@ -574,7 +574,7 @@ These never open a video or load TorchScript. Data is built in memory (`dict`, `
 | `tests/unit/test_ball_metrics.py` | `match_prediction` + `compute` (TP / FP1 / FP2 / TN / FN) |
 | `tests/unit/test_baseline.py` | `build_baseline`, save/load, `compare_to_baseline` cases |
 
-The evaluator class lives in `tests/evaluation/tennis/tennis_ball_tracking.py` so unit and NRT tests share the same metric code without importing the NRT entrypoint.
+The evaluator class lives in `tests/evaluation/ball_tracking.py` (`BallTrackingEvaluator`) so unit and NRT tests share the same metric code without importing the NRT entrypoint.
 
 ### Philosophy: baseline comparison, not fixed thresholds
 
@@ -584,7 +584,7 @@ The NRT does **not** assert “F1 > 0.80”. It asserts:
 
 An improvement that moves a metric outside the tolerance also fails the test. That is intentional: any behaviour change must be reviewed by regenerating and committing the baseline JSON. The git diff of that file shows exactly which videos and metrics moved.
 
-### Metric definitions (`TennisBallTrackingEvaluator`)
+### Metric definitions (`BallTrackingEvaluator`)
 
 For each annotated frame:
 
@@ -607,7 +607,7 @@ F1        = 2 * Precision * Recall / (Precision + Recall)
 
 ### Baseline file
 
-`tests/baselines/tennis_ball_tracking.json`:
+`tests/baselines/tennis/tennis_ball_tracking.json`:
 
 ```json
 {
@@ -648,7 +648,7 @@ First run without a baseline (or with `--update-baseline`) writes the baseline a
 python -m pytest tests/nrt/tennis -m nrt -s --update-baseline
 ```
 
-Then commit `tests/baselines/tennis_ball_tracking.json`.
+Then commit `tests/baselines/tennis/tennis_ball_tracking.json`.
 
 Reports are written to:
 
@@ -672,7 +672,7 @@ outputs/tests/tennis_ball_tracking/report.json
 
 ## 14. GitHub Actions
 
-Workflow: `.github/workflows/nrt-tennis-ball.yml` (workflow name: **Tests**)
+Workflow: [`.github/workflows/tests.yml`](.github/workflows/tests.yml) (workflow name: **Tests**)
 
 | Trigger | When |
 |---------|------|
@@ -708,7 +708,7 @@ Uses `dorny/paths-filter`. Sets `nrt=true` only when one of these changes:
 - `tests/baselines/**`
 - `tests/evaluation/**`
 - `requirements*.txt`
-- `.github/workflows/nrt-tennis-ball.yml`
+- `.github/workflows/tests.yml`
 
 A PR that only touches `pipeline/objects/` or `tests/baseline.py` / `tests/unit/` runs **unit only**.
 
@@ -725,7 +725,7 @@ Then:
 2. Cache `~/.cache/huggingface`
 3. `pytest tests/nrt/tennis -m nrt` with `SPORTAI_DEVICE=cpu`
 4. Append `report.md` to the GitHub Step Summary
-5. Upload artefacts: report folder + baseline JSON
+5. Upload artefacts: report folder + `tests/baselines/tennis/tennis_ball_tracking.json`
 
 `update_baseline` from `workflow_dispatch` is passed only to this job.
 
@@ -810,7 +810,7 @@ No change to `run.py`.
 ### Add a new NRT suite
 
 1. Copy the tennis NRT config / test / baseline pattern.
-2. Add a matrix line in `.github/workflows/nrt-tennis-ball.yml` (or a dedicated workflow).
+2. Add a matrix line in `.github/workflows/tests.yml` (or a dedicated workflow).
 3. Point `dataset` / `weights` / `regression.baseline` at the new assets.
 
 ---
@@ -827,7 +827,7 @@ No change to `run.py`.
 | Annotator coordinates disagree with predictions | Video not 1280×720 | Convert canvas coords using the centering offset, or resize/export clips at 1280×720. |
 | NRT takes ~15–20 min for one 825-frame clip | Three `cap.set` seeks per frame | Known limitation; a sliding-window sequential reader would speed this up. |
 | `from tests...` import fails | Another installed package named `tests` | Run via `python -m pytest` from the repo root (`pytest.ini` sets `pythonpath = .`). |
-| Cannot commit the baseline JSON | `.gitignore` has `*.json` | Exception already present: `!tests/baselines/*.json`. |
+| Cannot commit the baseline JSON | `.gitignore` has `*.json` | Exception already present: `!tests/baselines/**/*.json`. |
 
 ---
 

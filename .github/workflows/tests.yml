@@ -9,7 +9,7 @@ on:
       - "utils/**"
       - "requirements*.txt"
       - "pytest.ini"
-      - ".github/workflows/nrt-tennis-ball.yml"
+      - ".github/workflows/tests.yml"
   push:
     branches: [main]
   workflow_dispatch:
@@ -57,7 +57,7 @@ jobs:
               - 'tests/baselines/**'
               - 'tests/evaluation/**'
               - 'requirements*.txt'
-              - '.github/workflows/nrt-tennis-ball.yml'
+              - '.github/workflows/tests.yml'
 
   nrt:
     needs: [unit, changes]
@@ -110,5 +110,5 @@ jobs:
           name: tennis-ball-tracking-report
           path: |
             outputs/tests/tennis_ball_tracking
-            tests/baselines/tennis_ball_tracking.json
+            tests/baselines/tennis/tennis_ball_tracking.json
           if-no-files-found: ignore

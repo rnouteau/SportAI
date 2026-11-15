@@ -14,7 +14,7 @@ from scipy.spatial import distance
 
 class BallTrackingEvaluator:
     def __init__(self, config: dict, directory: Path) -> None:
-        logger.info("Initialized TennisBallTrackingEvaluator")
+        logger.info("Initialized BallTrackingEvaluator")
         self.config = config
         self.directory = directory
         self.min_dist = config.get("evaluation", {}).get("min_dist", 10)

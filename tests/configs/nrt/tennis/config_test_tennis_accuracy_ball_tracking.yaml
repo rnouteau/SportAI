@@ -15,6 +15,6 @@ weights:
 evaluation:
   min_dist: 10
 regression:
-  baseline: tests/baselines/tennis_ball_tracking.json
+  baseline: tests/baselines/tennis/tennis_ball_tracking.json
   metrics: [Accuracy, Precision, Recall, F1-Score]
   tolerance: 0.005

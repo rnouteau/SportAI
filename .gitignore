@@ -6,4 +6,4 @@ outputs
 *.pyc
 *.pt
 *.json
-!tests/baselines/*.json
+!tests/baselines/**/*.json
