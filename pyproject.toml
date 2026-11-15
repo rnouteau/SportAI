@@ -1,0 +1,44 @@
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+src = ["pipeline", "tests", "scripts", "utils"]
+extend-exclude = [
+    "trains",
+    "tools",
+    "datasets",
+    "models",
+    "outputs",
+]
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+    "B",   # flake8-bugbear
+    "UP",  # pyupgrade
+]
+ignore = [
+    "E501",  # line length handled by the formatter
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["pipeline", "tests", "scripts", "utils"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
+
+[tool.mypy]
+python_version = "3.11"
+files = ["pipeline"]
+ignore_missing_imports = true
+warn_unused_ignores = true
+show_error_codes = true
+pretty = true
+# Keep the first adoption light: no --strict yet.
+check_untyped_defs = false
+disallow_untyped_defs = false

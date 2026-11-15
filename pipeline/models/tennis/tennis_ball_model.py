@@ -9,7 +9,7 @@ from pipeline.objects.tennis.tennis_ball import TennisBall
 from pipeline.video_reader import VideoReader
 
 
-class TennisBallModel(Model):
+class TennisBallModel(Model[TennisAnalysis]):
     def __init__(self, config: dict) -> None:
         super().__init__(config)
         logger.info("TennisBallModel initialized")

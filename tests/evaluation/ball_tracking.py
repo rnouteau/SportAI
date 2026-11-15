@@ -1,16 +1,12 @@
-
-
-
-
-
 from pathlib import Path
 
-from loguru import logger
 import numpy as np
 import pandas as pd
+from loguru import logger
+from scipy.spatial import distance
 
 from pipeline.run import run_pipeline
-from scipy.spatial import distance
+
 
 class BallTrackingEvaluator:
     def __init__(self, config: dict, directory: Path) -> None:
@@ -57,15 +53,17 @@ class BallTrackingEvaluator:
         logger.info("\n" + table.to_string(index=False, float_format=lambda v: f"{v:.3f}"))
 
     def match_prediction(self, frames: list[dict], gt_df: pd.DataFrame) -> None:
-        pred_df = pd.DataFrame([
-            {
-                "frame": f["id"],
-                "x_pred": f["ball"]["position"][0] if f["ball"] else np.nan,
-                "y_pred": f["ball"]["position"][1] if f["ball"] else np.nan,
-                "confidence": f["ball"]["confidence"] if f["ball"] else np.nan,
-            }
-            for f in frames
-        ])
+        pred_df = pd.DataFrame(
+            [
+                {
+                    "frame": f["id"],
+                    "x_pred": f["ball"]["position"][0] if f["ball"] else np.nan,
+                    "y_pred": f["ball"]["position"][1] if f["ball"] else np.nan,
+                    "confidence": f["ball"]["confidence"] if f["ball"] else np.nan,
+                }
+                for f in frames
+            ]
+        )
 
         matched = gt_df.merge(pred_df, on="frame", how="left")
 
@@ -110,4 +108,3 @@ class BallTrackingEvaluator:
             "Recall": recall,
             "F1-Score": f1,
         }
-

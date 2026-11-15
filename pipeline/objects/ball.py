@@ -1,9 +1,12 @@
+from typing import Self
+
+
 class Ball:
     def __init__(self, data: dict) -> None:
         self.data = data
 
     @classmethod
-    def create(cls, position: tuple[float, float] | list[float], confidence: float) -> "Ball":
+    def create(cls, position: tuple[float, float] | list[float], confidence: float) -> Self:
         return cls({"position": list(position), "confidence": confidence})
 
     @property

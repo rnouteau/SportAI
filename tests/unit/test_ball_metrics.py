@@ -8,9 +8,11 @@ from tests.evaluation.ball_tracking import BallTrackingEvaluator
 
 
 def make_evaluator(min_dist: int = 10) -> BallTrackingEvaluator:
-    return BallTrackingEvaluator(config={"evaluation": {"min_dist":min_dist}},
-                                       directory = Path("."),
-                                       )
+    return BallTrackingEvaluator(
+        config={"evaluation": {"min_dist": min_dist}},
+        directory=Path("."),
+    )
+
 
 @pytest.mark.unit
 def test_match_prediction_counts_all_cases() -> None:
@@ -38,13 +40,14 @@ def test_match_prediction_counts_all_cases() -> None:
     )
 
     evaluator = make_evaluator(min_dist=10)
-    evaluator.match_prediction(frames,gt_df)
+    evaluator.match_prediction(frames, gt_df)
 
     assert evaluator.tp == 1
     assert evaluator.fp1 == 1
     assert evaluator.fp2 == 1
     assert evaluator.tn == 1
     assert evaluator.fn == 1
+
 
 @pytest.mark.unit
 def test_compute_metrics_from_known_counts() -> None:
@@ -54,7 +57,6 @@ def test_compute_metrics_from_known_counts() -> None:
     evaluator.fp2 = 1
     evaluator.tn = 1
     evaluator.fn = 1
-
 
     metrics = evaluator.compute()
 
@@ -69,6 +71,7 @@ def test_compute_metrics_from_known_counts() -> None:
     assert metrics["Recall"] == pytest.approx(0.5)
     assert metrics["F1-Score"] == pytest.approx(0.4)
 
+
 @pytest.mark.unit
 def test_exact_hit_counts_as_tp() -> None:
     frames = [{"id": 0, "ball": {"position": [100, 100], "confidence": 1.0}}]
@@ -80,6 +83,7 @@ def test_exact_hit_counts_as_tp() -> None:
     assert evaluator.tp == 1
     assert evaluator.fp1 == 0
 
+
 @pytest.mark.unit
 def test_distance_equal_to_min_dist_is_fp1() -> None:
     frames = [{"id": 0, "ball": {"position": [110, 100], "confidence": 1.0}}]
@@ -90,6 +94,7 @@ def test_distance_equal_to_min_dist_is_fp1() -> None:
 
     assert evaluator.tp == 0
     assert evaluator.fp1 == 1
+
 
 @pytest.mark.unit
 def test_compute_with_zero_frames_does_not_crash() -> None:

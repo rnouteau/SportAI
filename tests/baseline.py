@@ -13,7 +13,7 @@ def build_baseline(results: list[dict], context: dict, metrics: list[str]) -> di
 
 
 def load_baseline(path: Path) -> dict:
-    with open(path, "r", encoding="utf-8") as f:
+    with open(path, encoding="utf-8") as f:
         return json.load(f)
 
 

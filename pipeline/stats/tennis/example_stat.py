@@ -5,7 +5,7 @@ from pipeline.stats.stat import Stat
 from pipeline.video_reader import VideoReader
 
 
-class ExampleStat(Stat):
+class ExampleStat(Stat[TennisAnalysis]):
     def __init__(self) -> None:
         super().__init__()
         logger.info("ExampleStat initialized")

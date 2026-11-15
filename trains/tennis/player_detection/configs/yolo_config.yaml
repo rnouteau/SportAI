@@ -5,4 +5,3 @@ model:
   name: "yolo26n"
 model_params:
   epochs: 100
-  

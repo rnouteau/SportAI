@@ -1,7 +1,7 @@
+import json
 from abc import ABC
 from pathlib import Path
 from typing import Generic, TypeVar
-import json
 
 from pipeline.objects.frame import Frame
 from pipeline.video_reader import VideoReader
@@ -18,12 +18,14 @@ class Analysis(ABC, Generic[FrameT]):
 
     @classmethod
     def from_video(cls, video_reader: VideoReader, sport: str) -> "Analysis[FrameT]":
-        frames = [{"id": i, "players": [], "ball": None} for i in range(video_reader.frame_count)]
+        frames: list[dict] = [
+            {"id": i, "players": [], "ball": None} for i in range(video_reader.frame_count)
+        ]
         return cls({"sport": sport, "video": video_reader.info(), "frames": frames})
 
     @classmethod
     def load_json(cls, path: str | Path) -> "Analysis[FrameT]":
-        with open(path, "r", encoding="utf-8") as f:
+        with open(path, encoding="utf-8") as f:
             data = json.load(f)
         return cls(data)
 

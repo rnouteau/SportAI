@@ -78,6 +78,7 @@ SportAI/
 │   │   ├── test_tennis_ball.py
 │   │   ├── test_analysis_json.py
 │   │   ├── test_ball_metrics.py
+│   │   ├── test_ball_metrics_properties.py
 │   │   └── test_baseline.py
 │   ├── baselines/tennis/
 │   │   └── tennis_ball_tracking.json # Committed reference metrics
@@ -175,7 +176,7 @@ Stats read filled frames (`for frame in analysis.frames`) and write derived valu
 class Analysis(ABC, Generic[FrameT]):
     frame_class: type[FrameT]
     frames: list[FrameT]
-    data: dict   # the JSON document
+    data: dict  # the JSON document
 ```
 
 `TennisAnalysis(Analysis[TennisFrame])` sets `frame_class = TennisFrame`, so every frame is a `TennisFrame` with `.ball` and `.players`.
@@ -222,7 +223,7 @@ data = run_pipeline(
     "tennis",
     "path/to/clip.mp4",
     read_yaml("configs/tennis_config.yaml"),
-    test=True,   # return the dict instead of saving
+    test=True,  # return the dict instead of saving
 )
 ```
 
@@ -325,7 +326,7 @@ File: `pipeline/models/tennis/tennis_ball_model.py`
 5. Rescale coordinates from model space back to original video resolution.
 6. Write `TennisBall.create(position=(x, y), confidence=max_heatmap)` into the frame.
 
-**Why TorchScript?**  
+**Why TorchScript?**
 Training code lives under `trains/` and pulls datasets, losses, optimizers, etc. Production only needs the exported graph. That keeps the deployment surface small and stable.
 
 ---
@@ -444,7 +445,7 @@ Place the TorchScript ball model at:
 models/TENNIS_BALL_MODEL_04_11_2026.pt
 ```
 
-or point `weight:` in the config to another path.  
+or point `weight:` in the config to another path.
 `.pt` files are gitignored; in CI they are downloaded from Hugging Face.
 
 ---
@@ -531,7 +532,7 @@ python utils/video_downloader.py
 
 ## 12. Training and exporting a model
 
-Training code lives under `trains/tennis/ball_detection/` (TrackNet family: v2 / v4 / v5 / WASB).  
+Training code lives under `trains/tennis/ball_detection/` (TrackNet family: v2 / v4 / v5 / WASB).
 That package is **not** imported by `pipeline/`.
 
 After training, export a TorchScript artefact:
@@ -577,6 +578,7 @@ These never open a video or load TorchScript. Data is built in memory (`dict`, `
 | `tests/unit/test_tennis_ball.py` | `TennisBall.create`, velocity, dict view |
 | `tests/unit/test_analysis_json.py` | `save_json` / `load_json` round-trip, `frame.ball` persistence |
 | `tests/unit/test_ball_metrics.py` | `match_prediction` + `compute` (TP / FP1 / FP2 / TN / FN) |
+| `tests/unit/test_ball_metrics_properties.py` | Hypothesis: counts sum to Total; metrics stay in `[0, 1]` |
 | `tests/unit/test_baseline.py` | `build_baseline`, save/load, `compare_to_baseline` cases |
 
 The evaluator class lives in `tests/evaluation/ball_tracking.py` (`BallTrackingEvaluator`) so unit and NRT tests share the same metric code without importing the NRT entrypoint.
@@ -690,7 +692,7 @@ Model scores from the latest NRT on `main` are published to the repository **Wik
 
 | Trigger | When |
 |---------|------|
-| `pull_request` | Changes under `pipeline/`, `tests/`, `configs/`, `utils/`, requirements, or the workflow itself |
+| `pull_request` | Changes under `pipeline/`, `tests/`, `configs/`, `utils/`, requirements, `pyproject.toml`, `.pre-commit-config.yaml`, or the workflow itself |
 | `push` to `main` | Same |
 | `workflow_dispatch` | Manual run; optional `update_baseline` input (NRT job only) |
 
@@ -699,8 +701,10 @@ Model scores from the latest NRT on `main` are published to the repository **Wik
 ```mermaid
 flowchart LR
     pr[PR_or_push] --> unit[job_unit]
+    pr --> lint[job_lint]
     pr --> changes[job_changes]
     unit --> nrt[job_nrt]
+    lint --> nrt
     changes -->|"nrt paths changed?"| nrt
 ```
 
@@ -710,7 +714,13 @@ flowchart LR
 - `python -m pytest tests/unit -m unit -q`
 - Fails the PR quickly if pure logic breaks
 
-**2. `changes` (path filter)**
+**2. `lint` (always, parallel with `unit`)**
+
+- `ruff check` + `ruff format --check` on `pipeline/`, `tests/`, `scripts/`, `utils/`
+- `mypy --config-file=pyproject.toml pipeline`
+- Same install as unit (`requirements-test.txt`)
+
+**3. `changes` (path filter)**
 
 Uses `dorny/paths-filter`. Sets `nrt=true` only when one of these changes:
 
@@ -724,13 +734,13 @@ Uses `dorny/paths-filter`. Sets `nrt=true` only when one of these changes:
 - `requirements*.txt`
 - `.github/workflows/pr-tests.yml`
 
-A PR that only touches `pipeline/objects/` or `tests/baseline.py` / `tests/unit/` runs **unit only**.
+A PR that only touches `pipeline/objects/` or `tests/baseline.py` / `tests/unit/` runs **unit + lint** (no NRT).
 
-**3. `nrt` (slow, conditional)**
+**4. `nrt` (slow, conditional)**
 
 Runs only if:
 
-- `unit` succeeded, **and**
+- `unit` and `lint` succeeded, **and**
 - `workflow_dispatch` **or** the path filter reported NRT-relevant changes
 
 Then:

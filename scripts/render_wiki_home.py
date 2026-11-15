@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import argparse
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 SUITE_TENNIS_BALL = "tennis_ball_tracking"
@@ -25,8 +25,10 @@ def _md_table(headers: list[str], rows: list[list[str]]) -> str:
     line = "| " + " | ".join(headers) + " |"
     sep = "| " + " | ".join("---" for _ in headers) + " |"
     body = "\n".join("| " + " | ".join(row) + " |" for row in rows)
-    return "\n".join([line, sep, body]) if rows else "\n".join(
-        [line, sep, "| " + " | ".join("—" for _ in headers) + " |"]
+    return (
+        "\n".join([line, sep, body])
+        if rows
+        else "\n".join([line, sep, "| " + " | ".join("—" for _ in headers) + " |"])
     )
 
 
@@ -112,10 +114,7 @@ def _status_label(conclusion: str) -> str:
 
 
 def mermaid_f1_chart(history: list[dict], suite: str) -> str:
-    points = [
-        item for item in history
-        if item.get("suite") == suite and item.get("f1") is not None
-    ]
+    points = [item for item in history if item.get("suite") == suite and item.get("f1") is not None]
     if not points:
         return "_No F1 history yet for this suite._"
 
@@ -148,16 +147,20 @@ def history_table(history: list[dict], suite: str) -> str:
         short = commit[:7] if commit else "—"
         run_url = item.get("run_url") or ""
         commit_cell = f"[`{short}`]({run_url})" if run_url and short != "—" else f"`{short}`"
-        rows.append([
-            str(item.get("date", ""))[:10] or "—",
-            _fmt(item.get("f1")),
-            _status_label(str(item.get("conclusion") or "")),
-            commit_cell,
-        ])
+        rows.append(
+            [
+                str(item.get("date", ""))[:10] or "—",
+                _fmt(item.get("f1")),
+                _status_label(str(item.get("conclusion") or "")),
+                commit_cell,
+            ]
+        )
     return _md_table(["Date", "F1", "Status", "Commit"], rows)
 
 
-def build_metric_rows(current: dict, baseline: dict | None, tolerance: float) -> tuple[list[list[str]], bool]:
+def build_metric_rows(
+    current: dict, baseline: dict | None, tolerance: float
+) -> tuple[list[list[str]], bool]:
     rows: list[list[str]] = []
     all_ok = True
     baseline_videos = (baseline or {}).get("videos", {})
@@ -178,28 +181,32 @@ def build_metric_rows(current: dict, baseline: dict | None, tolerance: float) ->
                 status = "OK" if abs(delta) <= tolerance else "DIFF"
                 if status != "OK":
                     all_ok = False
-            rows.append([
-                video,
-                metric,
-                _fmt(value),
-                _fmt(expected),
-                _fmt(delta),
-                status,
-            ])
+            rows.append(
+                [
+                    video,
+                    metric,
+                    _fmt(value),
+                    _fmt(expected),
+                    _fmt(delta),
+                    status,
+                ]
+            )
     return rows, all_ok and baseline is not None
 
 
 def build_count_rows(results: list[dict]) -> list[list[str]]:
     rows = []
     for item in results:
-        rows.append([
-            str(item.get("Video", "")),
-            str(item.get("Total", "")),
-            str(item.get("TP", "")),
-            str(item.get("FP", "")),
-            str(item.get("TN", "")),
-            str(item.get("FN", "")),
-        ])
+        rows.append(
+            [
+                str(item.get("Video", "")),
+                str(item.get("Total", "")),
+                str(item.get("TP", "")),
+                str(item.get("FP", "")),
+                str(item.get("TN", "")),
+                str(item.get("FN", "")),
+            ]
+        )
     return rows
 
 
@@ -227,7 +234,7 @@ def render_home(
     else:
         status = conclusion.upper()
 
-    generated_at = generated_at or datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
+    generated_at = generated_at or datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S UTC")
     short_sha = commit[:7] if commit else "—"
 
     lines = [
@@ -263,8 +270,7 @@ def render_home(
         "",
         _md_table(
             ["Key", "Value"],
-            [[key, f"`{value}`"] for key, value in context.items()]
-            or [["—", "—"]],
+            [[key, f"`{value}`"] for key, value in context.items()] or [["—", "—"]],
         ),
         "",
         "### Metrics vs baseline",
@@ -290,7 +296,9 @@ def main() -> None:
     parser.add_argument("--report", type=Path, required=True, help="Path to NRT report.json")
     parser.add_argument("--output", type=Path, required=True, help="Path to write Home.md")
     parser.add_argument("--history-in", type=Path, default=None, help="Existing nrt-history.json")
-    parser.add_argument("--history-out", type=Path, default=None, help="Path to write updated history")
+    parser.add_argument(
+        "--history-out", type=Path, default=None, help="Path to write updated history"
+    )
     parser.add_argument("--commit", default="", help="Git commit SHA")
     parser.add_argument("--run-url", default="", help="GitHub Actions run URL")
     parser.add_argument("--workflow", default="", help="Workflow name")
@@ -300,7 +308,7 @@ def main() -> None:
     args = parser.parse_args()
 
     report = json.loads(args.report.read_text(encoding="utf-8"))
-    generated_at = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
+    generated_at = datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S UTC")
     history = load_history(args.history_in)
     history = append_run(
         history,

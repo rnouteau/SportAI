@@ -1,22 +1,25 @@
-
 import json
 import os
 from pathlib import Path
-from pipeline.run import run_pipeline
+
+import pandas as pd
+import pytest
+import torch
 
 from tests.assets import resolve_dataset_dir, resolve_weights
 from tests.baseline import build_baseline, compare_to_baseline, load_baseline, save_baseline
 from tests.evaluation.ball_tracking import BallTrackingEvaluator
 from utils import read_yaml
-from loguru import logger
-import pandas as pd
-import numpy as np
-import pytest
-import torch
-
 from utils.paths import get_root
 
-config_file = get_root() / "tests" / "configs" / "nrt" / "tennis" / "config_test_tennis_accuracy_ball_tracking.yaml"
+config_file = (
+    get_root()
+    / "tests"
+    / "configs"
+    / "nrt"
+    / "tennis"
+    / "config_test_tennis_accuracy_ball_tracking.yaml"
+)
 report_dir = get_root() / "outputs" / "tests" / "tennis_ball_tracking"
 
 
@@ -66,7 +69,9 @@ def run_context(config: dict) -> dict:
     }
 
 
-def save_report(results: list[dict], baseline: dict | None, current: dict, reg: dict, out_dir: Path) -> None:
+def save_report(
+    results: list[dict], baseline: dict | None, current: dict, reg: dict, out_dir: Path
+) -> None:
     out_dir.mkdir(parents=True, exist_ok=True)
 
     rows = []
@@ -81,23 +86,37 @@ def save_report(results: list[dict], baseline: dict | None, current: dict, reg: 
                 status = "missing from baseline"
             else:
                 status = "OK" if abs(delta) <= reg["tolerance"] else "DIFF"
-            rows.append({"Video": video, "Metric": metric, "Current": value,
-                         "Baseline": expected, "Delta": delta, "Status": status})
+            rows.append(
+                {
+                    "Video": video,
+                    "Metric": metric,
+                    "Current": value,
+                    "Baseline": expected,
+                    "Delta": delta,
+                    "Status": status,
+                }
+            )
 
     counts = pd.DataFrame(results)[["Video", "Total", "TP", "FP", "TN", "FN"]]
     comparison = pd.DataFrame(rows)
 
     with open(out_dir / "report.md", "w", encoding="utf-8") as f:
         f.write("## Tennis ball tracking - non-regression\n\n")
-        f.write(f"Context: `{json.dumps(current['context'], ensure_ascii=False)}` - tolerance: {reg['tolerance']}\n\n")
+        f.write(
+            f"Context: `{json.dumps(current['context'], ensure_ascii=False)}` - tolerance: {reg['tolerance']}\n\n"
+        )
         f.write(comparison.to_markdown(index=False, floatfmt=".4f"))
         f.write("\n\n### Counts\n\n")
         f.write(counts.to_markdown(index=False))
         f.write("\n")
 
     with open(out_dir / "report.json", "w", encoding="utf-8") as f:
-        json.dump({"current": current, "baseline": baseline, "results": results}, f, indent=2, ensure_ascii=False)
-
+        json.dump(
+            {"current": current, "baseline": baseline, "results": results},
+            f,
+            indent=2,
+            ensure_ascii=False,
+        )
 
 
 if __name__ == "__main__":

@@ -7,3 +7,4 @@ outputs
 *.pt
 *.json
 !tests/baselines/**/*.json
+.hypothesis
