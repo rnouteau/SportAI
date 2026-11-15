@@ -68,15 +68,22 @@ SportAI/
 │       ├── stat.py                   # Abstract Stat base class
 │       └── tennis/
 │           └── example_stat.py
-├── tests/                            # Non-regression tests (NRT)
+├── tests/
 │   ├── assets.py                     # Local files or Hugging Face download
 │   ├── baseline.py                   # Build / compare metric baselines
 │   ├── conftest.py                   # pytest --update-baseline
+│   ├── evaluation/                   # Shared evaluators (used by unit + NRT)
+│   │   └── tennis/tennis_ball_tracking.py
+│   ├── unit/                         # Fast pure-logic tests (@pytest.mark.unit)
+│   │   ├── test_tennis_ball.py
+│   │   ├── test_analysis_json.py
+│   │   ├── test_ball_metrics.py
+│   │   └── test_baseline.py
 │   ├── baselines/
 │   │   └── tennis_ball_tracking.json # Committed reference metrics
 │   ├── configs/nrt/tennis/
 │   │   └── config_test_tennis_accuracy_ball_tracking.yaml
-│   └── nrt/tennis/
+│   └── nrt/tennis/                   # Slow model NRT (@pytest.mark.nrt)
 │       └── test_tennis_accuracy_ball_tracking.py
 ├── tools/                            # Manual annotation / video helpers
 │   ├── ball_anotator.py              # Click ball positions on frames
@@ -90,7 +97,7 @@ SportAI/
 │   ├── read_yaml.py
 │   └── video_downloader.py           # yt-dlp helper
 ├── .github/workflows/
-│   └── nrt-tennis-ball.yml           # CI for the ball tracking NRT
+│   └── nrt-tennis-ball.yml           # CI: unit (always) + nrt (filtered)
 ├── requirements.txt
 ├── requirements-test.txt
 └── pytest.ini
@@ -103,7 +110,8 @@ SportAI/
 | `pipeline/` | Run models on videos, produce analysis JSON | Yes |
 | `trains/` | Train and export model weights | No (produces `.pt` artefacts only) |
 | `tools/` | Human annotation / video cutting GUIs | No |
-| `tests/` | Non-regression evaluation against a baseline | CI only |
+| `tests/unit/` | Fast pure-logic tests (no video / model / HF) | CI on every PR |
+| `tests/nrt/` | Slow model non-regression vs baseline | CI when inference paths change |
 
 Production never imports training code. The only link between `trains/` and `pipeline/` is a TorchScript `.pt` file.
 
@@ -539,6 +547,35 @@ Player detection training (YOLO) is sketched under `trains/tennis/player_detecti
 
 ## 13. Tests and baselines
 
+There are two pytest markers (see `pytest.ini`):
+
+| Marker | Folder | Speed | Needs video / weights / HF? | Purpose |
+|--------|--------|-------|-----------------------------|---------|
+| `unit` | `tests/unit/` | Seconds | No | Pure logic: objects, JSON I/O, metrics, baseline compare |
+| `nrt` | `tests/nrt/` | ~15–20 min / clip | Yes | Full pipeline on annotated clips vs committed baseline |
+
+```bash
+# Fast feedback while coding
+python -m pytest tests/unit -m unit -q
+
+# Slow model non-regression (CPU)
+$env:SPORTAI_DEVICE="cpu"   # PowerShell
+python -m pytest tests/nrt -m nrt -s -rs
+```
+
+### Unit tests (fast)
+
+These never open a video or load TorchScript. Data is built in memory (`dict`, `DataFrame`, pytest `tmp_path`).
+
+| File | What it locks |
+|------|----------------|
+| `tests/unit/test_tennis_ball.py` | `TennisBall.create`, velocity, dict view |
+| `tests/unit/test_analysis_json.py` | `save_json` / `load_json` round-trip, `frame.ball` persistence |
+| `tests/unit/test_ball_metrics.py` | `match_prediction` + `compute` (TP / FP1 / FP2 / TN / FN) |
+| `tests/unit/test_baseline.py` | `build_baseline`, save/load, `compare_to_baseline` cases |
+
+The evaluator class lives in `tests/evaluation/tennis/tennis_ball_tracking.py` so unit and NRT tests share the same metric code without importing the NRT entrypoint.
+
 ### Philosophy: baseline comparison, not fixed thresholds
 
 The NRT does **not** assert “F1 > 0.80”. It asserts:
@@ -597,11 +634,11 @@ The `context` block is compared first. If device, dataset revision, weights, thr
 
 **CPU vs GPU:** floating-point results are not bit-identical across devices. The CI baseline is generated on CPU (`SPORTAI_DEVICE=cpu`). Always regenerate baselines on the same device class that will verify them.
 
-### Running tests locally
+### Running the NRT locally
 
 ```bash
 # Use local datasets/ + models/ if present
-set SPORTAI_DEVICE=cpu          # PowerShell: $env:SPORTAI_DEVICE="cpu"
+$env:SPORTAI_DEVICE="cpu"          # PowerShell
 python -m pytest tests/nrt/tennis -m nrt -s -rs
 ```
 
@@ -627,7 +664,7 @@ outputs/tests/tennis_ball_tracking/report.json
 1. The NRT turns red and lists the deltas.
 2. If the change is intentional, regenerate:
    - locally: `pytest ... --update-baseline` with `SPORTAI_DEVICE=cpu`, or
-   - on CI: Actions → NRT tennis ball → Run workflow → check **Regenerate the baseline**.
+   - on CI: Actions → **Tests** → Run workflow → check **Regenerate the baseline**.
 3. Download / copy the new JSON into `tests/baselines/` and commit it in the same PR.
 4. Reviewers see the metric diffs in the PR.
 
@@ -635,22 +672,62 @@ outputs/tests/tennis_ball_tracking/report.json
 
 ## 14. GitHub Actions
 
-Workflow: `.github/workflows/nrt-tennis-ball.yml`
+Workflow: `.github/workflows/nrt-tennis-ball.yml` (workflow name: **Tests**)
 
 | Trigger | When |
 |---------|------|
 | `pull_request` | Changes under `pipeline/`, `tests/`, `configs/`, `utils/`, requirements, or the workflow itself |
 | `push` to `main` | Same |
-| `workflow_dispatch` | Manual run; optional `update_baseline` input |
+| `workflow_dispatch` | Manual run; optional `update_baseline` input (NRT job only) |
 
-Job outline:
+### Jobs
 
-1. Checkout + Python 3.11
-2. Install CPU torch, then `requirements-test.txt`
-3. Cache `~/.cache/huggingface` (keyed on the NRT config hash)
-4. `pytest tests/nrt/tennis -m nrt` with `SPORTAI_DEVICE=cpu`
-5. Append `report.md` to the GitHub Step Summary
-6. Upload artefacts: report folder + baseline JSON
+```mermaid
+flowchart LR
+    pr[PR_or_push] --> unit[job_unit]
+    pr --> changes[job_changes]
+    unit --> nrt[job_nrt]
+    changes -->|"nrt paths changed?"| nrt
+```
+
+**1. `unit` (always, ~seconds–minutes)**
+
+- Install `requirements-test.txt` (no separate CPU torch install)
+- `python -m pytest tests/unit -m unit -q`
+- Fails the PR quickly if pure logic breaks
+
+**2. `changes` (path filter)**
+
+Uses `dorny/paths-filter`. Sets `nrt=true` only when one of these changes:
+
+- `pipeline/models/**`
+- `pipeline/run.py`
+- `pipeline/video_reader.py`
+- `tests/nrt/**`
+- `tests/configs/nrt/**`
+- `tests/baselines/**`
+- `tests/evaluation/**`
+- `requirements*.txt`
+- `.github/workflows/nrt-tennis-ball.yml`
+
+A PR that only touches `pipeline/objects/` or `tests/baseline.py` / `tests/unit/` runs **unit only**.
+
+**3. `nrt` (slow, conditional)**
+
+Runs only if:
+
+- `unit` succeeded, **and**
+- `workflow_dispatch` **or** the path filter reported NRT-relevant changes
+
+Then:
+
+1. Install CPU torch + `requirements-test.txt`
+2. Cache `~/.cache/huggingface`
+3. `pytest tests/nrt/tennis -m nrt` with `SPORTAI_DEVICE=cpu`
+4. Append `report.md` to the GitHub Step Summary
+5. Upload artefacts: report folder + baseline JSON
+
+`update_baseline` from `workflow_dispatch` is passed only to this job.
 
 Required repository secret:
 
@@ -767,7 +844,10 @@ python -m pipeline.run --sport tennis --video_path clip.mp4 --config configs/ten
 # Annotate a clip
 python tools/ball_anotator.py --video_path clip.mp4
 
-# Non-regression test (CPU)
+# Fast unit tests (no video / model)
+python -m pytest tests/unit -m unit -q
+
+# Non-regression test (CPU, slow)
 $env:SPORTAI_DEVICE="cpu"
 python -m pytest tests/nrt/tennis -m nrt -s -rs
 
