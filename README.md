@@ -1,5 +1,7 @@
 # SportAI
 
+[![codecov](https://codecov.io/gh/rnouteau/TennisAI/graph/badge.svg)](https://codecov.io/gh/rnouteau/TennisAI)
+
 SportAI is a sports video analysis pipeline. It runs detection / tracking models on a video, stores every prediction in a typed JSON document (`Analysis`), then computes statistics and non-regression metrics on top of that document.
 
 The first implemented sport is **tennis**, with a ball detection model based on TrackNet exported to TorchScript. The architecture is designed so that new sports, models and stats can be added without rewriting the orchestrator.
@@ -81,6 +83,10 @@ SportAI/
 │   │   ├── test_ball_metrics.py
 │   │   ├── test_ball_metrics_properties.py  # Hypothesis invariants
 │   │   └── test_baseline.py
+│   ├── integration/                  # Medium tests (@pytest.mark.integration)
+│   │   ├── test_video_reader.py      # Synthetic OpenCV video + VideoReader
+│   │   ├── test_run_pipeline_fake_model.py
+│   │   └── test_ball_tracking_evaluator_flow.py
 │   ├── baselines/tennis/
 │   │   └── tennis_ball_tracking.json # Committed reference metrics
 │   ├── configs/nrt/tennis/
@@ -103,9 +109,9 @@ SportAI/
 ├── .github/
 │   ├── actions/publish-wiki/         # Composite action: render + push wiki
 │   └── workflows/
-│       ├── pr-tests.yml              # CI: unit + lint (parallel) + nrt (filtered)
+│       ├── pr-tests.yml              # CI: unit + integration + coverage + lint + nrt
 │       └── nrt-nightly.yml           # Full NRT on main (cron + manual)
-├── pyproject.toml                    # Ruff + mypy config
+├── pyproject.toml                    # Ruff + mypy + coverage config
 ├── .pre-commit-config.yaml           # Local hooks (ruff, mypy, file hygiene)
 ├── requirements.txt
 ├── requirements-test.txt             # pytest, hypothesis, ruff, mypy, pre-commit, HF
@@ -120,8 +126,9 @@ SportAI/
 | `trains/` | Train and export model weights | No (produces `.pt` artefacts only) |
 | `tools/` | Human annotation / video cutting GUIs | No |
 | `tests/unit/` | Fast pure-logic tests (no video / model / HF) | CI job `unit` on every PR |
+| `tests/integration/` | Synthetic video + fake model + evaluator flow (no HF) | CI job `integration` (parallel) |
 | `tests/nrt/` | Slow model non-regression vs baseline | CI when inference paths change |
-| Lint / pre-commit | Ruff + mypy (+ file hygiene hooks) | CI job `lint` (parallel with `unit`) |
+| Lint / pre-commit | Ruff + mypy (+ file hygiene hooks) | CI job `lint` (parallel) |
 
 Production never imports training code. The only link between `trains/` and `pipeline/` is a TorchScript `.pt` file.
 
@@ -567,16 +574,20 @@ Player detection training (YOLO) is sketched under `trains/tennis/player_detecti
 
 ## 13. Tests and baselines
 
-There are two pytest markers (see `pytest.ini`):
+There are three pytest markers (see `pytest.ini`):
 
-| Marker | Folder | Speed | Needs video / weights / HF? | Purpose |
-|--------|--------|-------|-----------------------------|---------|
-| `unit` | `tests/unit/` | Seconds | No | Pure logic: objects, JSON I/O, metrics, baseline compare, Hypothesis invariants |
+| Marker | Folder | Speed | Needs real video / weights / HF? | Purpose |
+|--------|--------|-------|----------------------------------|---------|
+| `unit` | `tests/unit/` | Seconds | No | Pure logic: objects, JSON I/O, metrics, baseline compare, Hypothesis |
+| `integration` | `tests/integration/` | Seconds–tens of s | No (synthetic OpenCV video + fake model) | `VideoReader`, `run_pipeline`, evaluator flow |
 | `nrt` | `tests/nrt/` | ~15–20 min / clip | Yes | Full pipeline on annotated clips vs committed baseline |
 
 ```bash
 # Fast feedback while coding
 python -m pytest tests/unit -m unit -q
+
+# Integration (synthetic video, no HF / TorchScript weights)
+python -m pytest tests/integration -m integration -q
 
 # Slow model non-regression (CPU)
 $env:SPORTAI_DEVICE="cpu"   # PowerShell
@@ -595,7 +606,35 @@ These never open a video or load TorchScript. Data is built in memory (`dict`, `
 | `tests/unit/test_ball_metrics_properties.py` | Hypothesis: counts sum to Total; metrics stay in `[0, 1]` |
 | `tests/unit/test_baseline.py` | `build_baseline`, save/load, `compare_to_baseline` cases |
 
-The evaluator class lives in `tests/evaluation/ball_tracking.py` (`BallTrackingEvaluator`) so unit and NRT tests share the same metric code without importing the NRT entrypoint.
+The evaluator class lives in `tests/evaluation/ball_tracking.py` (`BallTrackingEvaluator`) so unit, integration and NRT tests share the same metric code without importing the NRT entrypoint.
+
+### Integration tests (medium)
+
+OpenCV writes a tiny synthetic `.mp4` under pytest `tmp_path`. A `FakeTennisBallModel` (no `.pt`) is loaded by `run_pipeline` via its fully-qualified class path. No Hugging Face assets.
+
+| File | What it locks |
+|------|----------------|
+| `tests/integration/test_video_reader.py` | Metadata, `read_frame`, out-of-bounds, `release` |
+| `tests/integration/test_run_pipeline_fake_model.py` | `run_pipeline(..., test=True)` writes balls + analysis dict shape |
+| `tests/integration/test_ball_tracking_evaluator_flow.py` | Pipeline → `match_prediction` → `compute` (TP/FN/TN/FP2 scenario) |
+
+### Coverage (`pytest-cov`)
+
+Config: [`pyproject.toml`](pyproject.toml) (`[tool.coverage.run]` / `[tool.coverage.report]`).
+
+| Setting | Value |
+|---------|--------|
+| Measured | `pipeline/`, `tests.evaluation`, `tests.baseline` |
+| Omitted | `pipeline/models/tennis/tennis_ball_model.py` (NRT-only), `pipeline/stats/**` |
+| CI threshold | `--cov-fail-under=60` (also `fail_under = 60` in config) |
+
+```bash
+python -m pytest tests/unit tests/integration -m "unit or integration" `
+  --cov=pipeline --cov=tests.evaluation --cov=tests.baseline `
+  --cov-report=term-missing --cov-fail-under=60
+```
+
+Use `tests.baseline` (module), not `tests/baseline` (path). The CI job **`coverage`** runs the same command, uploads `coverage.xml`, and sends it to Codecov (badge at the top of this README). Add repository secret `CODECOV_TOKEN` for private repos ([codecov.io](https://codecov.io)).
 
 ### Philosophy: baseline comparison, not fixed thresholds
 
@@ -714,7 +753,7 @@ mypy --config-file=pyproject.toml pipeline
 pre-commit run --all-files
 ```
 
-The CI job **`lint`** runs these checks in parallel with **`unit`**. The NRT job waits for both to succeed.
+The CI jobs **`unit`**, **`integration`**, **`coverage`** and **`lint`** run in parallel. The NRT job waits for all of them to succeed.
 
 ---
 
@@ -724,7 +763,7 @@ Two workflows:
 
 | Workflow | File | Role |
 |----------|------|------|
-| **Tests** | [`.github/workflows/pr-tests.yml`](.github/workflows/pr-tests.yml) | `unit` + `lint` in parallel; NRT when NRT paths change (or manual) |
+| **Tests** | [`.github/workflows/pr-tests.yml`](.github/workflows/pr-tests.yml) | `unit` + `integration` + `coverage` + `lint` in parallel; NRT when NRT paths change (or manual) |
 | **NRT Nightly** | [`.github/workflows/nrt-nightly.yml`](.github/workflows/nrt-nightly.yml) | Full NRT on `main` every night (no path filter) |
 
 Model scores from the latest NRT on `main` are published to the repository **Wiki → Home** page (auto-generated from `report.json`).
@@ -742,26 +781,41 @@ Model scores from the latest NRT on `main` are published to the repository **Wik
 ```mermaid
 flowchart LR
     pr[PR_or_push] --> unit[job_unit]
+    pr --> integration[job_integration]
+    pr --> coverage[job_coverage]
     pr --> lint[job_lint]
     pr --> changes[job_changes]
     unit --> nrt[job_nrt]
+    integration --> nrt
+    coverage --> nrt
     lint --> nrt
     changes -->|"nrt paths changed?"| nrt
 ```
 
-**1. `unit` (always, ~seconds–minutes)**
+**1. `unit` (always, ~seconds)**
 
 - Install `requirements-test.txt` (no separate CPU torch install)
 - `python -m pytest tests/unit -m unit -q`
 - Fails the PR quickly if pure logic breaks
 
-**2. `lint` (always, parallel with `unit`)**
+**2. `integration` (always, parallel)**
+
+- `python -m pytest tests/integration -m integration -q`
+- Synthetic video + fake model; no HF token required
+
+**3. `coverage` (always, parallel)**
+
+- Re-runs unit + integration with `pytest-cov`
+- Fails if total coverage < 60 % (omits TrackNet model + stats; see §13)
+- Uploads `coverage.xml` artefact + Codecov
+
+**4. `lint` (always, parallel)**
 
 - `ruff check` + `ruff format --check` on `pipeline/`, `tests/`, `scripts/`, `utils/`
 - `mypy --config-file=pyproject.toml pipeline`
 - Same install as unit (`requirements-test.txt`)
 
-**3. `changes` (path filter)**
+**5. `changes` (path filter)**
 
 Uses `dorny/paths-filter`. Sets `nrt=true` only when one of these changes:
 
@@ -775,13 +829,13 @@ Uses `dorny/paths-filter`. Sets `nrt=true` only when one of these changes:
 - `requirements*.txt`
 - `.github/workflows/pr-tests.yml`
 
-A PR that only touches `pipeline/objects/` or `tests/baseline.py` / `tests/unit/` runs **unit + lint** (no NRT).
+A PR that only touches `pipeline/objects/` or `tests/baseline.py` / `tests/unit/` runs **unit + integration + coverage + lint** (no NRT).
 
-**4. `nrt` (slow, conditional)**
+**6. `nrt` (slow, conditional)**
 
 Runs only if:
 
-- `unit` and `lint` succeeded, **and**
+- `unit`, `integration`, `coverage` and `lint` succeeded, **and**
 - `workflow_dispatch` **or** the path filter reported NRT-relevant changes
 
 Then:
@@ -801,6 +855,7 @@ Required repository secrets:
 |--------|---------|
 | `HF_TOKEN` | Read-only Hugging Face token to download the private dataset and model weights |
 | `WIKI_TOKEN` | PAT that can push to the repo wiki (`repo` classic, or fine-grained with wiki write) |
+| `CODECOV_TOKEN` | Codecov upload token (needed for private repos; optional for public) |
 
 If `HF_TOKEN` is missing (e.g. PR from a fork), the NRT step is skipped with a warning instead of failing.
 
@@ -949,6 +1004,14 @@ python tools/ball_anotator.py --video_path clip.mp4
 
 # Fast unit tests (no video / model)
 python -m pytest tests/unit -m unit -q
+
+# Integration tests (synthetic video, fake model)
+python -m pytest tests/integration -m integration -q
+
+# Coverage (unit + integration, fail under 60%)
+python -m pytest tests/unit tests/integration -m "unit or integration" `
+  --cov=pipeline --cov=tests.evaluation --cov=tests.baseline `
+  --cov-report=term-missing --cov-fail-under=60
 
 # Lint (same as CI job lint)
 ruff check pipeline tests scripts utils

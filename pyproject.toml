@@ -42,3 +42,20 @@ pretty = true
 # Keep the first adoption light: no --strict yet.
 check_untyped_defs = false
 disallow_untyped_defs = false
+
+[tool.coverage.run]
+branch = false
+source = ["pipeline", "tests.evaluation", "tests.baseline"]
+omit = [
+    "pipeline/models/tennis/tennis_ball_model.py",
+    "pipeline/stats/**",
+]
+
+[tool.coverage.report]
+fail_under = 60
+show_missing = true
+skip_empty = true
+exclude_lines = [
+    "pragma: no cover",
+    "if __name__ == .__main__.:",
+]
