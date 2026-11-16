@@ -75,7 +75,8 @@ SportAI/
 │   ├── assets.py                     # Local files or Hugging Face download
 │   ├── baseline.py                   # Build / compare metric baselines
 │   ├── conftest.py                   # pytest --update-baseline
-│   ├── evaluation/                   # Shared evaluators (used by unit + NRT)
+│   ├── helpers.py                    # Shared test helpers (e.g. make_synthetic_video)
+│   ├── evaluation/                   # Shared evaluators (unit + integration + NRT)
 │   │   └── ball_tracking.py          # BallTrackingEvaluator
 │   ├── unit/                         # Fast pure-logic tests (@pytest.mark.unit)
 │   │   ├── test_tennis_ball.py
@@ -109,12 +110,12 @@ SportAI/
 ├── .github/
 │   ├── actions/publish-wiki/         # Composite action: render + push wiki
 │   └── workflows/
-│       ├── pr-tests.yml              # CI: unit + integration + coverage + lint + nrt
+│       ├── pr-tests.yml              # CI: unit/lint matrix + integration/coverage 3.11 + nrt
 │       └── nrt-nightly.yml           # Full NRT on main (cron + manual)
 ├── pyproject.toml                    # Ruff + mypy + coverage config
 ├── .pre-commit-config.yaml           # Local hooks (ruff, mypy, file hygiene)
 ├── requirements.txt
-├── requirements-test.txt             # pytest, hypothesis, ruff, mypy, pre-commit, HF
+├── requirements-test.txt             # pytest, hypothesis, pytest-cov, ruff, mypy, pre-commit, HF
 └── pytest.ini
 ```
 
@@ -125,10 +126,11 @@ SportAI/
 | `pipeline/` | Run models on videos, produce analysis JSON | Yes |
 | `trains/` | Train and export model weights | No (produces `.pt` artefacts only) |
 | `tools/` | Human annotation / video cutting GUIs | No |
-| `tests/unit/` | Fast pure-logic tests (no video / model / HF) | CI job `unit` on every PR |
-| `tests/integration/` | Synthetic video + fake model + evaluator flow (no HF) | CI job `integration` (parallel) |
-| `tests/nrt/` | Slow model non-regression vs baseline | CI when inference paths change |
-| Lint / pre-commit | Ruff + mypy (+ file hygiene hooks) | CI job `lint` (parallel) |
+| `tests/unit/` | Fast pure-logic tests (no video / model / HF) | CI job `unit` (matrix 3.10–3.12) |
+| `tests/integration/` | Synthetic video + fake model + evaluator flow (no HF) | CI job `integration` (3.11) |
+| Coverage | unit + integration via `pytest-cov`, fail under 60 % | CI job `coverage` (3.11) + Codecov |
+| `tests/nrt/` | Slow model non-regression vs baseline | CI when inference paths change (3.11) |
+| Lint / pre-commit | Ruff + mypy (+ file hygiene hooks) | CI job `lint` (matrix 3.10–3.12) |
 
 Production never imports training code. The only link between `trains/` and `pipeline/` is a TorchScript `.pt` file.
 
@@ -144,8 +146,11 @@ Production never imports training code. The only link between `trains/` and `pip
 |--------------------|---------|
 | `video_path`, `fps`, `width`, `height`, `frame_count` | Video metadata |
 | `info()` | Dict written into the analysis JSON under `"video"` |
-| `read_frame(i)` | Seek to frame `i` and return a BGR `np.ndarray` |
+| `read_frame(i)` | Seek to frame `i` and return a BGR `np.ndarray` (random access) |
+| `iter_triplets()` | One forward pass: yield `(i, prev, curr, next)` with edge clamping |
 | `release()` | Close the capture |
+
+`TennisBallModel` uses `iter_triplets()` so inference does not seek three times per frame (major NRT speedup).
 
 ### Model
 
@@ -339,7 +344,7 @@ File: `pipeline/models/tennis/tennis_ball_model.py`
 
 **Inference logic**
 
-1. For each frame `i`, build a triplet `(i-1, i, i+1)` (edges clamp to the first/last frame).
+1. Walk the video once via `video_reader.iter_triplets()` → `(i, i-1, i, i+1)` with edge clamping.
 2. Convert BGR → RGB, resize to `512×288`, concatenate channels → tensor `(1, 9, 288, 512)`.
 3. Run the TorchScript model → 3 heatmaps; keep the middle one (current frame).
 4. Extract the largest contour centroid above the threshold.
@@ -426,7 +431,7 @@ Asset resolution (`tests/assets.py`):
 
 ### Requirements
 
-- Python 3.11+
+- Python 3.10+ (CI matrix: 3.10 / 3.11 / 3.12 on `unit` + `lint`; NRT and local default: 3.11)
 - (Optional) CUDA-capable GPU for faster inference
 - `ffmpeg` in `PATH` if you use the precise mode of `video_cuter.py`
 
@@ -580,7 +585,7 @@ There are three pytest markers (see `pytest.ini`):
 |--------|--------|-------|----------------------------------|---------|
 | `unit` | `tests/unit/` | Seconds | No | Pure logic: objects, JSON I/O, metrics, baseline compare, Hypothesis |
 | `integration` | `tests/integration/` | Seconds–tens of s | No (synthetic OpenCV video + fake model) | `VideoReader`, `run_pipeline`, evaluator flow |
-| `nrt` | `tests/nrt/` | ~15–20 min / clip | Yes | Full pipeline on annotated clips vs committed baseline |
+| `nrt` | `tests/nrt/` | Minutes / clip (CPU; much faster with sequential triplets) | Yes | Full pipeline on annotated clips vs committed baseline |
 
 ```bash
 # Fast feedback while coding
@@ -610,11 +615,11 @@ The evaluator class lives in `tests/evaluation/ball_tracking.py` (`BallTrackingE
 
 ### Integration tests (medium)
 
-OpenCV writes a tiny synthetic `.mp4` under pytest `tmp_path`. A `FakeTennisBallModel` (no `.pt`) is loaded by `run_pipeline` via its fully-qualified class path. No Hugging Face assets.
+OpenCV writes a tiny synthetic `.mp4` under pytest `tmp_path` (helper: `tests/helpers.py` → `make_synthetic_video`). A `FakeTennisBallModel` (no `.pt`) is loaded by `run_pipeline` via its fully-qualified class path. No Hugging Face assets.
 
 | File | What it locks |
 |------|----------------|
-| `tests/integration/test_video_reader.py` | Metadata, `read_frame`, out-of-bounds, `release` |
+| `tests/integration/test_video_reader.py` | Metadata, `read_frame`, out-of-bounds, `release`, `iter_triplets` equivalence |
 | `tests/integration/test_run_pipeline_fake_model.py` | `run_pipeline(..., test=True)` writes balls + analysis dict shape |
 | `tests/integration/test_ball_tracking_evaluator_flow.py` | Pipeline → `match_prediction` → `compute` (TP/FN/TN/FP2 scenario) |
 
@@ -763,8 +768,8 @@ Two workflows:
 
 | Workflow | File | Role |
 |----------|------|------|
-| **Tests** | [`.github/workflows/pr-tests.yml`](.github/workflows/pr-tests.yml) | `unit` + `integration` + `coverage` + `lint` in parallel; NRT when NRT paths change (or manual) |
-| **NRT Nightly** | [`.github/workflows/nrt-nightly.yml`](.github/workflows/nrt-nightly.yml) | Full NRT on `main` every night (no path filter) |
+| **Tests** | [`.github/workflows/pr-tests.yml`](.github/workflows/pr-tests.yml) | `unit`/`lint` matrix 3.10–3.12; `integration`/`coverage` on 3.11; NRT filtered |
+| **NRT Nightly** | [`.github/workflows/nrt-nightly.yml`](.github/workflows/nrt-nightly.yml) | Full NRT on `main` every night (Python 3.11, no path filter) |
 
 Model scores from the latest NRT on `main` are published to the repository **Wiki → Home** page (auto-generated from `report.json`).
 
@@ -794,16 +799,17 @@ flowchart LR
 
 **1. `unit` (always, ~seconds)**
 
+- Matrix: Python **3.10 / 3.11 / 3.12** (`fail-fast: false`)
 - Install `requirements-test.txt` (no separate CPU torch install)
 - `python -m pytest tests/unit -m unit -q`
 - Fails the PR quickly if pure logic breaks
 
-**2. `integration` (always, parallel)**
+**2. `integration` (always, parallel, Python 3.11 only)**
 
 - `python -m pytest tests/integration -m integration -q`
 - Synthetic video + fake model; no HF token required
 
-**3. `coverage` (always, parallel)**
+**3. `coverage` (always, parallel, Python 3.11 only)**
 
 - Re-runs unit + integration with `pytest-cov`
 - Fails if total coverage < 60 % (omits TrackNet model + stats; see §13)
@@ -811,6 +817,7 @@ flowchart LR
 
 **4. `lint` (always, parallel)**
 
+- Matrix: Python **3.10 / 3.11 / 3.12** (`fail-fast: false`)
 - `ruff check` + `ruff format --check` on `pipeline/`, `tests/`, `scripts/`, `utils/`
 - `mypy --config-file=pyproject.toml pipeline`
 - Same install as unit (`requirements-test.txt`)
@@ -831,7 +838,7 @@ Uses `dorny/paths-filter`. Sets `nrt=true` only when one of these changes:
 
 A PR that only touches `pipeline/objects/` or `tests/baseline.py` / `tests/unit/` runs **unit + integration + coverage + lint** (no NRT).
 
-**6. `nrt` (slow, conditional)**
+**6. `nrt` (slow, conditional, Python 3.11 only)**
 
 Runs only if:
 
@@ -840,7 +847,7 @@ Runs only if:
 
 Then:
 
-1. Install CPU torch + `requirements-test.txt`
+1. Install CPU torch + `requirements-test.txt` (Python 3.11)
 2. Cache `~/.cache/huggingface`
 3. `pytest tests/nrt/tennis -m nrt` with `SPORTAI_DEVICE=cpu`
 4. Append `report.md` to the GitHub Step Summary
@@ -868,7 +875,7 @@ Runs the full ball-tracking NRT on the default branch (`main`) without the path 
 | `schedule` | `0 2 * * *` (02:00 UTC daily) |
 | `workflow_dispatch` | Manual run from the Actions tab |
 
-Same CPU torch install, HF cache, pytest NRT command, step summary, artefact upload, and **wiki Home publish** as the NRT job in **Tests**. If `HF_TOKEN` is missing, the workflow **fails** (unlike PR forks, where a skip is acceptable).
+Same setup as the NRT job in **Tests** (Python **3.11**, CPU torch, HF cache, pytest, step summary, artefacts, **wiki Home publish**). If `HF_TOKEN` is missing, the workflow **fails** (unlike PR forks, where a skip is acceptable).
 
 ### Wiki Home (model results)
 
@@ -980,7 +987,7 @@ No change to `run.py`.
 | Baseline comparison fails after switching GPU ↔ CPU | Different floating-point paths | Regenerate the baseline on the same device class as CI (`cpu`). |
 | `Results differ from the baseline` after a tiny code change | Expected | Inspect `report.md`, then `--update-baseline` if the new behaviour is wanted. |
 | Annotator coordinates disagree with predictions | Video not 1280×720 | Convert canvas coords using the centering offset, or resize/export clips at 1280×720. |
-| NRT takes ~15–20 min for one 825-frame clip | Three `cap.set` seeks per frame | Known limitation; a sliding-window sequential reader would speed this up. |
+| NRT still slow on CPU | TrackNet on CPU is heavy even with sequential I/O | Prefer a short clip; GPU locally; CI stays on CPU for baseline stability. |
 | `from tests...` import fails | Another installed package named `tests` | Run via `python -m pytest` from the repo root (`pytest.ini` sets `pythonpath = .`). |
 | Cannot commit the baseline JSON | `.gitignore` has `*.json` | Exception already present: `!tests/baselines/**/*.json`. |
 | pre-commit / CI `lint` fails on mypy `[override]` | Subclass narrowed `Analysis` without generics | Inherit `Model[TennisAnalysis]` / `Stat[TennisAnalysis]` (see §3). |

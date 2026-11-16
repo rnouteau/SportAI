@@ -35,22 +35,10 @@ class TennisBallModel(Model[TennisAnalysis]):
             logger.error("No weight loaded, cannot run")
             return
 
-        n = video_reader.frame_count
         in_h, in_w = self.input_size
         threshold_uint8 = int(self.threshold * 255)
 
-        for frame_number in range(n):
-            prev_idx = max(frame_number - 1, 0)
-            next_idx = min(frame_number + 1, n - 1)
-
-            frame_prev = video_reader.read_frame(prev_idx)
-            frame = video_reader.read_frame(frame_number)
-            frame_next = video_reader.read_frame(next_idx)
-
-            if frame is None or frame_prev is None or frame_next is None:
-                logger.warning(f"Missing frame around {frame_number}, skipped")
-                continue
-
+        for frame_number, frame_prev, frame, frame_next in video_reader.iter_triplets():
             input_tensor = self._preprocess_frame(frame, frame_prev, frame_next)
 
             with torch.no_grad():

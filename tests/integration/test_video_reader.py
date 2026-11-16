@@ -60,3 +60,59 @@ def test_release_closes_capture(tmp_path: Path) -> None:
 
     _ = reader.read_frame(0)
     reader.release()
+
+
+@pytest.mark.integration
+def test_iter_triplets_length_and_edges(tmp_path: Path) -> None:
+    n_frames = 5
+    video_path = make_synthetic_video(tmp_path / "clip.mp4", n_frames=n_frames)
+    reader = VideoReader(str(video_path))
+    try:
+        triplets = list(reader.iter_triplets())
+        assert len(triplets) == n_frames
+
+        index0, prev0, curr0, next0 = triplets[0]
+        assert index0 == 0
+        assert np.array_equal(prev0, curr0)
+        assert not np.array_equal(curr0, next0)
+
+        index_last, prev_last, curr_last, next_last = triplets[-1]
+        assert index_last == n_frames - 1
+        assert np.array_equal(curr_last, next_last)
+        assert not np.array_equal(prev_last, curr_last)
+    finally:
+        reader.release()
+
+
+@pytest.mark.integration
+def test_iter_triplets_matches_read_frame(tmp_path: Path) -> None:
+    n_frames = 6
+    video_path = make_synthetic_video(tmp_path / "clip.mp4", n_frames=n_frames, size=(32, 24))
+    sequential = VideoReader(str(video_path))
+    random_access = VideoReader(str(video_path))
+    try:
+        triplets = list(sequential.iter_triplets())
+        for index, prev, curr, nxt in triplets:
+            prev_idx = max(index - 1, 0)
+            next_idx = min(index + 1, n_frames - 1)
+            assert np.array_equal(prev, random_access.read_frame(prev_idx))
+            assert np.array_equal(curr, random_access.read_frame(index))
+            assert np.array_equal(nxt, random_access.read_frame(next_idx))
+    finally:
+        sequential.release()
+        random_access.release()
+
+
+@pytest.mark.integration
+def test_iter_triplets_single_frame(tmp_path: Path) -> None:
+    video_path = make_synthetic_video(tmp_path / "clip.mp4", n_frames=1)
+    reader = VideoReader(str(video_path))
+    try:
+        triplets = list(reader.iter_triplets())
+        assert len(triplets) == 1
+        index, prev, curr, nxt = triplets[0]
+        assert index == 0
+        assert np.array_equal(prev, curr)
+        assert np.array_equal(curr, nxt)
+    finally:
+        reader.release()
