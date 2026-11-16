@@ -1,6 +1,6 @@
 # SportAI
 
-[![codecov](https://codecov.io/gh/rnouteau/TennisAI/graph/badge.svg)](https://codecov.io/gh/rnouteau/TennisAI)
+[![codecov](https://codecov.io/gh/rnouteau/SportAI/graph/badge.svg)](https://codecov.io/gh/rnouteau/SportAI)
 
 SportAI is a sports video analysis pipeline. It runs detection / tracking models on a video, stores every prediction in a typed JSON document (`Analysis`), then computes statistics and non-regression metrics on top of that document.
 
