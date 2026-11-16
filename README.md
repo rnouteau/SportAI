@@ -110,7 +110,7 @@ SportAI/
 ├── .github/
 │   ├── actions/publish-wiki/         # Composite action: render + push wiki
 │   └── workflows/
-│       ├── pr-tests.yml              # CI: unit/lint matrix + integration/coverage 3.11 + nrt
+│       ├── pr-tests.yml              # CI: unit/lint 3.11–3.12 + integration/coverage 3.11 + nrt
 │       └── nrt-nightly.yml           # Full NRT on main (cron + manual)
 ├── pyproject.toml                    # Ruff + mypy + coverage config
 ├── .pre-commit-config.yaml           # Local hooks (ruff, mypy, file hygiene)
@@ -126,11 +126,11 @@ SportAI/
 | `pipeline/` | Run models on videos, produce analysis JSON | Yes |
 | `trains/` | Train and export model weights | No (produces `.pt` artefacts only) |
 | `tools/` | Human annotation / video cutting GUIs | No |
-| `tests/unit/` | Fast pure-logic tests (no video / model / HF) | CI job `unit` (matrix 3.10–3.12) |
+| `tests/unit/` | Fast pure-logic tests (no video / model / HF) | CI job `unit` (matrix 3.11–3.12) |
 | `tests/integration/` | Synthetic video + fake model + evaluator flow (no HF) | CI job `integration` (3.11) |
 | Coverage | unit + integration via `pytest-cov`, fail under 60 % | CI job `coverage` (3.11) + Codecov |
 | `tests/nrt/` | Slow model non-regression vs baseline | CI when inference paths change (3.11) |
-| Lint / pre-commit | Ruff + mypy (+ file hygiene hooks) | CI job `lint` (matrix 3.10–3.12) |
+| Lint / pre-commit | Ruff + mypy (+ file hygiene hooks) | CI job `lint` (matrix 3.11–3.12) |
 
 Production never imports training code. The only link between `trains/` and `pipeline/` is a TorchScript `.pt` file.
 
@@ -431,7 +431,7 @@ Asset resolution (`tests/assets.py`):
 
 ### Requirements
 
-- Python 3.10+ (CI matrix: 3.10 / 3.11 / 3.12 on `unit` + `lint`; NRT and local default: 3.11)
+- Python 3.11+ (CI matrix: 3.11 / 3.12 on `unit` + `lint`; NRT and local default: 3.11)
 - (Optional) CUDA-capable GPU for faster inference
 - `ffmpeg` in `PATH` if you use the precise mode of `video_cuter.py`
 
@@ -768,7 +768,7 @@ Two workflows:
 
 | Workflow | File | Role |
 |----------|------|------|
-| **Tests** | [`.github/workflows/pr-tests.yml`](.github/workflows/pr-tests.yml) | `unit`/`lint` matrix 3.10–3.12; `integration`/`coverage` on 3.11; NRT filtered |
+| **Tests** | [`.github/workflows/pr-tests.yml`](.github/workflows/pr-tests.yml) | `unit`/`lint` matrix 3.11–3.12; `integration`/`coverage` on 3.11; NRT filtered |
 | **NRT Nightly** | [`.github/workflows/nrt-nightly.yml`](.github/workflows/nrt-nightly.yml) | Full NRT on `main` every night (Python 3.11, no path filter) |
 
 Model scores from the latest NRT on `main` are published to the repository **Wiki → Home** page (auto-generated from `report.json`).
@@ -799,7 +799,7 @@ flowchart LR
 
 **1. `unit` (always, ~seconds)**
 
-- Matrix: Python **3.10 / 3.11 / 3.12** (`fail-fast: false`)
+- Matrix: Python **3.11 / 3.12** (`fail-fast: false`)
 - Install `requirements-test.txt` (no separate CPU torch install)
 - `python -m pytest tests/unit -m unit -q`
 - Fails the PR quickly if pure logic breaks
@@ -817,7 +817,7 @@ flowchart LR
 
 **4. `lint` (always, parallel)**
 
-- Matrix: Python **3.10 / 3.11 / 3.12** (`fail-fast: false`)
+- Matrix: Python **3.11 / 3.12** (`fail-fast: false`)
 - `ruff check` + `ruff format --check` on `pipeline/`, `tests/`, `scripts/`, `utils/`
 - `mypy --config-file=pyproject.toml pipeline`
 - Same install as unit (`requirements-test.txt`)
