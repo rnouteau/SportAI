@@ -54,7 +54,7 @@ SportAI/
 │   └── tennis_config.yaml
 ├── pipeline/                         # Inference / analysis runtime
 │   ├── run.py                        # Orchestrator (CLI entrypoint)
-│   ├── video_reader.py               # OpenCV video wrapper
+│   ├── video_reader.py               # OpenCV wrapper (read_frame + iter_triplets)
 │   ├── models/
 │   │   ├── model.py                  # Abstract Model[AnalysisT] base
 │   │   └── tennis/
@@ -449,7 +449,8 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-For tests, lint, and CI extras (`pytest`, `hypothesis`, `ruff`, `mypy`, `pre-commit`, HF hub, …):
+For tests, lint, coverage, and CI extras (`pytest`, `pytest-cov`, `hypothesis`, `ruff`, `mypy`, `pre-commit`, HF hub, …).
+These pins require **Python ≥ 3.11** (`pre-commit` / `mypy` no longer install on 3.10):
 
 ```bash
 pip install -r requirements-test.txt
@@ -758,7 +759,7 @@ mypy --config-file=pyproject.toml pipeline
 pre-commit run --all-files
 ```
 
-The CI jobs **`unit`**, **`integration`**, **`coverage`** and **`lint`** run in parallel. The NRT job waits for all of them to succeed.
+The CI jobs **`unit`**, **`integration`**, **`coverage`** and **`lint`** run in parallel (`unit`/`lint` on 3.11 and 3.12). The NRT job waits for all of them to succeed — if any matrix cell fails, NRT is skipped even when model paths changed.
 
 ---
 
@@ -932,7 +933,7 @@ hf upload rnouteau/sportai-models models/TENNIS_BALL_MODEL_04_11_2026.pt tennis/
 
 For GitHub Actions, create a **read-only** token at [huggingface.co/settings/tokens](https://huggingface.co/settings/tokens) and store it as the `HF_TOKEN` repository secret.
 
-Keep test clips short (5–15 seconds). On CPU, TrackNet processes only a few frames per second; a long clip makes CI slow.
+Keep test clips short (5–15 seconds). Frame I/O is sequential (`iter_triplets`), but TrackNet on CPU is still only a few frames per second — a long clip makes CI slow.
 
 ---
 
@@ -981,17 +982,22 @@ No change to `run.py`.
 
 | Symptom | Likely cause | Fix |
 |---------|--------------|-----|
-| `RuntimeError: Attempting to deserialize object on a CUDA device...` | Config asks for `cuda` on a machine without GPU | Already handled by the CPU fallback in `TennisBallModel`; ensure you pull the latest code. Or set `SPORTAI_DEVICE=cpu`. |
-| Test shows 0% recall but no exception | Old `run.py` swallowed model errors | Current code re-raises after `logger.exception`. Check the traceback. |
+| `RuntimeError: Attempting to deserialize object on a CUDA device...` | Config asks for `cuda` on a machine without GPU | Already handled by the CPU fallback in `TennisBallModel`; or set `SPORTAI_DEVICE=cpu`. |
+| Test shows 0% recall but no exception | Model error was swallowed | Current `run.py` re-raises after `logger.exception`. Check the traceback. |
 | `FileNotFoundError` on weights in CI | Missing / wrong HF path or token | Verify `weights.filename`, repo visibility, and `HF_TOKEN`. |
 | Baseline comparison fails after switching GPU ↔ CPU | Different floating-point paths | Regenerate the baseline on the same device class as CI (`cpu`). |
-| `Results differ from the baseline` after a tiny code change | Expected | Inspect `report.md`, then `--update-baseline` if the new behaviour is wanted. |
+| `Results differ from the baseline` after a tiny code change | Expected (incl. `iter_triplets` / model edits) | Inspect `report.md`, then `--update-baseline` on CPU if the new behaviour is wanted. |
 | Annotator coordinates disagree with predictions | Video not 1280×720 | Convert canvas coords using the centering offset, or resize/export clips at 1280×720. |
 | NRT still slow on CPU | TrackNet on CPU is heavy even with sequential I/O | Prefer a short clip; GPU locally; CI stays on CPU for baseline stability. |
+| NRT job skipped even though `pipeline/models/**` changed | `unit` / `lint` / `coverage` / `integration` not all green | Matrix jobs must all succeed (`needs.*.result == success`) before NRT starts. |
+| `No matching distribution for pre-commit==4.7.0` on 3.10 | Pins require Python ≥ 3.11 | Use 3.11+ locally; CI matrix is **3.11 / 3.12** only. |
+| `Coverage failure: total … less than fail-under=60` | Real drop, or wrong `--cov` path | Use `--cov=tests.baseline` (module). Omits are in `pyproject.toml`. Raise coverage or fix tests. |
+| Codecov badge shows `unknown` | No successful upload, wrong repo URL, or missing token | Run job `coverage` on GitHub; secret `CODECOV_TOKEN`; badge must point to `rnouteau/SportAI`. |
 | `from tests...` import fails | Another installed package named `tests` | Run via `python -m pytest` from the repo root (`pytest.ini` sets `pythonpath = .`). |
 | Cannot commit the baseline JSON | `.gitignore` has `*.json` | Exception already present: `!tests/baselines/**/*.json`. |
 | pre-commit / CI `lint` fails on mypy `[override]` | Subclass narrowed `Analysis` without generics | Inherit `Model[TennisAnalysis]` / `Stat[TennisAnalysis]` (see §3). |
 | pre-commit fails then “files were modified” | Auto-fix hooks (whitespace, ruff format) | Re-stage and commit again; or run `pre-commit run --all-files` once. |
+| ruff `B017` on `pytest.raises(Exception)` | Blind exception catch | Assert a concrete type, or only check that `release()` does not raise. |
 | Wiki Home not updated after NRT on `main` | Missing `WIKI_TOKEN` or wiki not bootstrapped | Enable Wikis, create a first page, add the PAT secret. |
 
 ---
