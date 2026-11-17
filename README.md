@@ -4,7 +4,7 @@
 
 SportAI is a sports video analysis pipeline. It runs detection / tracking models on a video, stores every prediction in a typed JSON document (`Analysis`), then computes statistics and non-regression metrics on top of that document.
 
-The first implemented sport is **tennis**, with a ball detection model based on TrackNet exported to TorchScript. The architecture is designed so that new sports, models and stats can be added without rewriting the orchestrator.
+The first implemented sport is **tennis**, with a TrackNet TorchScript **ball** detector and a YOLO **player** detector. The architecture is designed so that new sports, models and stats can be added without rewriting the orchestrator.
 
 ---
 
@@ -37,8 +37,8 @@ Given a tennis video and a YAML config, SportAI:
 
 1. Opens the video with OpenCV (`VideoReader`).
 2. Builds an empty `TennisAnalysis` object (one frame entry per video frame).
-3. Instantiates every model listed in the config (currently `TennisBallModel`).
-4. Runs each model. Models write predictions into the analysis frames (e.g. `frame.ball`).
+3. Instantiates every model listed in the config (e.g. `TennisBallModel`, `TennisPlayerModel`).
+4. Runs each model. Models write predictions into the analysis frames (`frame.ball`, `frame.players`).
 5. Optionally runs stats on the filled analysis.
 6. Saves the full analysis as a JSON file, or returns the dict when used from tests.
 
@@ -58,7 +58,8 @@ SportAI/
 │   ├── models/
 │   │   ├── model.py                  # Abstract Model[AnalysisT] base
 │   │   └── tennis/
-│   │       └── tennis_ball_model.py  # TrackNet TorchScript ball detector
+│   │       ├── tennis_ball_model.py    # TrackNet TorchScript ball detector
+│   │       └── tennis_player_model.py  # YOLO player detector
 │   ├── objects/                      # Typed views over the analysis JSON
 │   │   ├── analysis.py               # Analysis[FrameT] base
 │   │   ├── frame.py / ball.py / player_at_frame.py
@@ -99,7 +100,7 @@ SportAI/
 │   └── nrt/tennis/                   # Slow model NRT (@pytest.mark.nrt)
 │       ├── test_tennis_accuracy_ball_detection.py
 │       └── test_tennis_accuracy_players_detection.py
-├── models/
+├── models/                           # Local weights (gitignored root dir)
 │   ├── based_models/                 # Pretrained checkpoints (e.g. yolo11s.pt)
 │   └── trained_models/               # Fine-tuned weights (Ultralytics runs + stable .pt)
 ├── tools/                            # Manual annotation / video helpers
@@ -141,7 +142,7 @@ SportAI/
 | `tests/nrt/` | Slow model non-regression vs baseline | CI when inference paths change (3.11) |
 | Lint / pre-commit | Ruff + mypy (+ file hygiene hooks) | CI job `lint` (matrix 3.11–3.12) |
 
-Production never imports training code. The only link between `trains/` and `pipeline/` is a TorchScript `.pt` file.
+Production never imports training code. The only link between `trains/` and `pipeline/` is exported weight files (TorchScript `.pt` for the ball, Ultralytics `.pt` for players).
 
 ---
 
@@ -302,7 +303,7 @@ data = run_pipeline(
 | root | `TennisAnalysis` | `analysis.data`, `analysis.frames` |
 | `frames[i]` | `TennisFrame` | `frame.id`, `frame.ball`, `frame.players` |
 | `frames[i].ball` | `TennisBall` | `frame.ball.position`, `frame.ball.confidence` |
-| `frames[i].players[j]` | `TennisPlayerAtFrame` | (ready for player detection) |
+| `frames[i].players[j]` | `TennisPlayerAtFrame` | `player.bbox`, `player.confidence` |
 
 Each class keeps a reference to its dict (`self.data`). Properties read/write that dict. There is no separate serialization step.
 
@@ -363,6 +364,24 @@ File: `pipeline/models/tennis/tennis_ball_model.py`
 **Why TorchScript?**
 Training code lives under `trains/` and pulls datasets, losses, optimizers, etc. Production only needs the exported graph. That keeps the deployment surface small and stable.
 
+### TennisPlayerModel
+
+File: `pipeline/models/tennis/tennis_player_model.py`
+
+| Option | Default | Meaning |
+|--------|---------|---------|
+| `weight` | required | Path to an Ultralytics YOLO `.pt` checkpoint |
+| `device` | `"cpu"` | `"cuda"` / `"cuda:0"` / `"cpu"`. Falls back to CPU if CUDA is unavailable |
+| `input_size` | `(640, 640)` | Stored for reference (Ultralytics uses its own imgsz defaults unless overridden) |
+
+**Inference logic**
+
+1. For each frame id, `video_reader.read_frame(i)`.
+2. `YOLO.predict(..., classes=[0], stream=True)` (person / player class).
+3. For each box, build `TennisPlayerAtFrame` and assign `frame.players`.
+
+Exported from `pipeline.models.tennis` next to `TennisBallModel`. Production config lists both models; NRT player suite runs player-only.
+
 ---
 
 ## 7. Stats
@@ -392,6 +411,10 @@ models:
       device: "cuda"
       threshold: 0.5
       weight: "./models/TENNIS_BALL_MODEL_04_11_2026.pt"
+  - name: pipeline.models.tennis.TennisPlayerModel
+    config:
+      device: "cuda"
+      weight: "./models/TENNIS_PLAYER_MODEL_17_11_2026.pt"
 outputs:
   path: ./outputs/tennis/stats.json
 ```
@@ -402,9 +425,11 @@ outputs:
 | `models[].config` | Passed to `Model.__init__` |
 | `outputs.path` | Where `save_json` writes the analysis |
 
-### Test config — `tests/configs/nrt/tennis/config_test_tennis_accuracy_ball_tracking.yaml`
+### NRT configs — `tests/configs/nrt/tennis/`
 
-Extends the production shape with dataset / weights resolution and regression settings:
+Each suite extends the production shape with dataset / weights resolution and regression settings.
+
+**Ball** — `config_test_tennis_accuracy_ball_detection.yaml`:
 
 ```yaml
 models:
@@ -424,8 +449,32 @@ weights:
 evaluation:
   min_dist: 10                # pixels: max distance to count a true positive
 regression:
-  baseline: tests/baselines/tennis/tennis_ball_tracking.json
+  baseline: tests/baselines/tennis/tennis_ball_detection.json
   metrics: [Accuracy, Precision, Recall, F1-Score]
+  tolerance: 0.01
+```
+
+**Players** — `config_test_tennis_accuracy_players_detection.yaml`:
+
+```yaml
+models:
+  - name: pipeline.models.tennis.TennisPlayerModel
+    config:
+      device: "cuda"
+      weight: "./models/TENNIS_PLAYER_MODEL_17_11_2026.pt"
+dataset:
+  local_dir: ./datasets/tennis/player_detection/test
+  repo_id: rnouteau/sportai-test-data
+  revision: v2
+  subset: tennis/player_detection/test
+weights:
+  repo_id: rnouteau/sportai-models
+  filename: tennis/player/TENNIS_PLAYER_MODEL_17_11_2026.pt
+evaluation:
+  iou_threshold: 0.5
+regression:
+  baseline: tests/baselines/tennis/tennis_player_detection.json
+  metrics: [Accuracy, Precision, Recall, F1-Score, mAP50, mAP50-95]
   tolerance: 0.005
 ```
 
@@ -478,11 +527,12 @@ pip install -r requirements-test.txt
 | Role | Path | Notes |
 |------|------|--------|
 | Ball (TorchScript) | `models/TENNIS_BALL_MODEL_04_11_2026.pt` | Loaded by `TennisBallModel` via `torch.jit.load` |
+| Players (YOLO) | `models/TENNIS_PLAYER_MODEL_17_11_2026.pt` | Loaded by `TennisPlayerModel` (HF: `tennis/player/...`) |
 | YOLO pretrained | `models/based_models/yolo11s.pt` | Base weights for player training / annotator pre-label |
 | YOLO fine-tuned | `models/trained_models/tennis_player_yolo11s.pt` | Stable copy of Ultralytics `best.pt` after train |
 
 Or point `weight:` in the pipeline config to another path.
-`.pt` files and `models/{based,trained}_models/**` are gitignored (dirs kept via `.gitkeep`); in CI ball weights are downloaded from Hugging Face.
+`.pt` files and the root `/models/` tree are gitignored (dirs kept via `.gitkeep`); `pipeline/models/` stays tracked. In CI, NRT weights are downloaded from Hugging Face.
 
 ---
 
@@ -637,7 +687,7 @@ Inspect runs:
 mlflow ui --backend-store-uri sqlite:///mlflow.db
 ```
 
-Player detection is not wired into the inference pipeline yet (see §17).
+After training, copy / upload the stable weights so `TennisPlayerModel` can load them (local `models/` or Hugging Face `tennis/player/...`).
 
 ---
 
@@ -695,8 +745,10 @@ Config: [`pyproject.toml`](pyproject.toml) (`[tool.coverage.run]` / `[tool.cover
 | Setting | Value |
 |---------|--------|
 | Measured | `pipeline/`, `tests.evaluation`, `tests.baseline` |
-| Omitted | `pipeline/models/tennis/tennis_ball_model.py` (NRT-only), `pipeline/stats/**` |
+| Omitted | `pipeline/models/tennis/tennis_ball_model.py` (NRT-only TrackNet), `pipeline/stats/**` |
 | CI threshold | `--cov-fail-under=60` (also `fail_under = 60` in config) |
+
+`tennis_player_model.py` is currently included in coverage measurement (YOLO import path); the ball TorchScript model stays omitted.
 
 ```bash
 python -m pytest tests/unit tests/integration -m "unit or integration" `
@@ -735,9 +787,23 @@ Recall    = TP / (TP + FN)
 F1        = 2 * Precision * Recall / (Precision + Recall)
 ```
 
-### Baseline file
+### Metric definitions (`PlayerDetectionEvaluator`)
 
-`tests/baselines/tennis/tennis_ball_tracking.json`:
+Per frame, predicted and GT boxes (`xyxy`) are matched greedily by IoU:
+
+| Case | Count |
+|------|-------|
+| Matched pair with IoU ≥ `iou_threshold` (default 0.5) | TP |
+| Prediction with no such match | FP |
+| GT box left unmatched | FN |
+
+Also reports COCO-style `mAP50` and `mAP50-95` (IoU thresholds 0.50:0.05:0.95; a pair is TP only if IoU ≥ 0.5 at the lowest threshold).
+
+Regression metrics compared to baseline: Accuracy, Precision, Recall, F1-Score, mAP50, mAP50-95.
+
+### Baseline files
+
+Ball — `tests/baselines/tennis/tennis_ball_detection.json`:
 
 ```json
 {
@@ -750,8 +816,8 @@ F1        = 2 * Precision * Recall / (Precision + Recall)
   },
   "videos": {
     "clip.mp4": {
-      "Accuracy": 0.8715,
-      "Precision": 0.9926,
+      "Accuracy": 0.8679,
+      "Precision": 0.9917,
       "Recall": 0.7952,
       "F1-Score": 0.883
     },
@@ -760,7 +826,9 @@ F1        = 2 * Precision * Recall / (Precision + Recall)
 }
 ```
 
-The `context` block is compared first. If device, dataset revision, weights, threshold or `min_dist` differ from the baseline, the test fails immediately with a clear message asking you to regenerate — instead of dumping a confusing list of metric drifts caused by a config mismatch.
+Players — `tests/baselines/tennis/tennis_player_detection.json` (same shape; context uses player weights / dataset revision `v2` and IoU settings; metrics include mAP).
+
+The `context` block is compared first. If device, dataset revision, weights, or evaluation knobs differ from the baseline, the test fails immediately with a clear message asking you to regenerate — instead of dumping a confusing list of metric drifts caused by a config mismatch.
 
 **CPU vs GPU:** floating-point results are not bit-identical across devices. The CI baseline is generated on CPU (`SPORTAI_DEVICE=cpu`). Always regenerate baselines on the same device class that will verify them.
 
@@ -919,7 +987,7 @@ Runs only if:
 
 Then:
 
-1. Install CPU torch + `requirements-test.txt` (Python 3.11)
+1. Install CPU `torch` + `torchvision` + `requirements-test.txt` (Python 3.11)
 2. Cache `~/.cache/huggingface` (keyed on both NRT tennis configs)
 3. `pytest tests/nrt/tennis -m nrt` with `SPORTAI_DEVICE=cpu` (ball **and** players)
 4. Append both `report.md` files to the GitHub Step Summary
@@ -961,7 +1029,7 @@ via [`scripts/render_wiki_home.py`](scripts/render_wiki_home.py) and [`.github/a
 The page includes:
 
 - latest run status
-- **two** F1 history sections (`tennis_ball_tracking` and `tennis_player_detection` suites in `nrt-history.json`)
+- **two** F1 history sections (wiki suite ids `tennis_ball_tracking` and `tennis_player_detection` in `nrt-history.json`; report folders remain `tennis_*_detection`)
 - full metrics / counts for ball and for players (incl. `mAP50` / `mAP50-95` when present)
 
 History is stored in the wiki repo as `nrt-history.json` (not in SportAI git), capped at the last 120 points, with dedup by Actions run URL or commit+day **per suite**. **PR NRT runs do not update the wiki.**
@@ -1008,28 +1076,23 @@ hf upload rnouteau/sportai-models models/TENNIS_BALL_MODEL_04_11_2026.pt tennis/
 hf upload rnouteau/sportai-models models/TENNIS_PLAYER_MODEL_17_11_2026.pt tennis/player/TENNIS_PLAYER_MODEL_17_11_2026.pt
 ```
 
+NRT configs pin dataset revisions separately: **ball → `v1`**, **players → `v2`**. Tag new dataset snapshots when you change either subset.
+
 For GitHub Actions, create a **read-only** token at [huggingface.co/settings/tokens](https://huggingface.co/settings/tokens) and store it as the `HF_TOKEN` repository secret.
 
-Keep test clips short (5–15 seconds). Frame I/O is sequential (`iter_triplets`), but TrackNet on CPU is still only a few frames per second — a long clip makes CI slow.
+Keep test clips short (5–15 seconds). TrackNet on CPU is only a few frames per second; YOLO player NRT is lighter per frame but still adds wall time on long clips.
 
 ---
 
 ## 17. How to extend the project
 
-### Add a new model (e.g. player detection)
+### Add a new model (e.g. court keypoints)
 
-1. Create `pipeline/models/tennis/tennis_player_model.py` inheriting from `Model[TennisAnalysis]`.
+1. Create `pipeline/models/tennis/tennis_<thing>_model.py` inheriting from `Model[TennisAnalysis]`.
 2. Implement `run(self, video_reader, analysis: TennisAnalysis)`.
-3. In `run`, write into frames, e.g. via a future `frame.add_player(...)` or by appending to `frame.data["players"]`.
+3. In `run`, write into frames (extend `TennisFrame` / analysis JSON as needed).
 4. Export the class from `pipeline/models/tennis/__init__.py`.
-5. Add an entry under `models:` in the YAML:
-
-```yaml
-- name: pipeline.models.tennis.TennisPlayerModel
-  config:
-    weight: ./models/trained_models/tennis_player_yolo11s.pt
-    device: cuda
-```
+5. Add an entry under `models:` in the YAML (see `TennisBallModel` / `TennisPlayerModel` for existing patterns).
 
 No change to `run.py`.
 
@@ -1076,14 +1139,17 @@ No change to `run.py`.
 | pre-commit fails then “files were modified” | Auto-fix hooks (whitespace, ruff format) | Re-stage and commit again; or run `pre-commit run --all-files` once. |
 | ruff `B017` on `pytest.raises(Exception)` | Blind exception catch | Assert a concrete type, or only check that `release()` does not raise. |
 | Wiki Home not updated after NRT on `main` | Missing `WIKI_TOKEN` or wiki not bootstrapped | Enable Wikis, create a first page, add the PAT secret. |
+| `RuntimeError: operator torchvision::nms does not exist` | `torch` CPU wheel + mismatched `torchvision` from PyPI | Install both from the same index: `pip install torch==2.9.0 torchvision==0.24.0 --index-url https://download.pytorch.org/whl/cpu` (see §9). |
+| Ball NRT fails with small metric drift (~0.005–0.01) | CPU / Ultralytics nondeterminism | Inspect `report.md`; ball suite tolerance is `0.01`. Regenerate baseline on CPU only for intentional model/post-process changes. |
 
 ---
 
 ## Quick reference
 
 ```bash
-# Install
+# Install (CPU torch + torchvision; then test deps)
 python -m venv .venv && .\.venv\Scripts\Activate.ps1
+pip install torch==2.9.0 torchvision==0.24.0 --index-url https://download.pytorch.org/whl/cpu
 pip install -r requirements-test.txt
 
 # Run inference
