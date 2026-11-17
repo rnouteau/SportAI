@@ -9,7 +9,7 @@ from pipeline.objects.tennis.tennis_analysis import TennisAnalysis
 from pipeline.objects.tennis.tennis_ball import TennisBall
 from pipeline.run import run_pipeline
 from pipeline.video_reader import VideoReader
-from tests.evaluation.ball_tracking import BallTrackingEvaluator
+from tests.evaluation.ball_detection_evaluation import BallTrackingEvaluator
 from tests.helpers import make_synthetic_video
 
 

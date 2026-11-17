@@ -7,7 +7,12 @@ class Ball:
 
     @classmethod
     def create(cls, position: tuple[float, float] | list[float], confidence: float) -> Self:
-        return cls({"position": list(position), "confidence": confidence})
+        return cls(
+            {
+                "position": [float(x) for x in position],
+                "confidence": float(confidence),
+            }
+        )
 
     @property
     def position(self) -> list[float] | None:

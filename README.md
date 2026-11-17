@@ -77,23 +77,28 @@ SportAI/
 │   ├── conftest.py                   # pytest --update-baseline
 │   ├── helpers.py                    # Shared test helpers (e.g. make_synthetic_video)
 │   ├── evaluation/                   # Shared evaluators (unit + integration + NRT)
-│   │   └── ball_tracking.py          # BallTrackingEvaluator
+│   │   ├── ball_detection_evaluation.py    # BallTrackingEvaluator
+│   │   └── player_detection_evaluation.py  # PlayerDetectionEvaluator
 │   ├── unit/                         # Fast pure-logic tests (@pytest.mark.unit)
 │   │   ├── test_tennis_ball.py
 │   │   ├── test_analysis_json.py
 │   │   ├── test_ball_metrics.py
 │   │   ├── test_ball_metrics_properties.py  # Hypothesis invariants
+│   │   ├── test_player_detection_metrics.py
 │   │   └── test_baseline.py
 │   ├── integration/                  # Medium tests (@pytest.mark.integration)
 │   │   ├── test_video_reader.py      # Synthetic OpenCV video + VideoReader
 │   │   ├── test_run_pipeline_fake_model.py
 │   │   └── test_ball_tracking_evaluator_flow.py
 │   ├── baselines/tennis/
-│   │   └── tennis_ball_tracking.json # Committed reference metrics
+│   │   ├── tennis_ball_detection.json
+│   │   └── tennis_player_detection.json
 │   ├── configs/nrt/tennis/
-│   │   └── config_test_tennis_accuracy_ball_tracking.yaml
+│   │   ├── config_test_tennis_accuracy_ball_detection.yaml
+│   │   └── config_test_tennis_accuracy_players_detection.yaml
 │   └── nrt/tennis/                   # Slow model NRT (@pytest.mark.nrt)
-│       └── test_tennis_accuracy_ball_tracking.py
+│       ├── test_tennis_accuracy_ball_detection.py
+│       └── test_tennis_accuracy_players_detection.py
 ├── models/
 │   ├── based_models/                 # Pretrained checkpoints (e.g. yolo11s.pt)
 │   └── trained_models/               # Fine-tuned weights (Ultralytics runs + stable .pt)
@@ -668,9 +673,10 @@ These never open a video or load TorchScript. Data is built in memory (`dict`, `
 | `tests/unit/test_analysis_json.py` | `save_json` / `load_json` round-trip, `frame.ball` persistence |
 | `tests/unit/test_ball_metrics.py` | `match_prediction` + `compute` (TP / FP1 / FP2 / TN / FN) |
 | `tests/unit/test_ball_metrics_properties.py` | Hypothesis: counts sum to Total; metrics stay in `[0, 1]` |
+| `tests/unit/test_player_detection_metrics.py` | IoU / greedy match (TP if IoU ≥ 0.5 else FP) + mAP helpers |
 | `tests/unit/test_baseline.py` | `build_baseline`, save/load, `compare_to_baseline` cases |
 
-The evaluator class lives in `tests/evaluation/ball_tracking.py` (`BallTrackingEvaluator`) so unit, integration and NRT tests share the same metric code without importing the NRT entrypoint.
+Shared evaluators live under `tests/evaluation/` (`ball_detection_evaluation.py`, `player_detection_evaluation.py`) so unit, integration and NRT tests reuse the same metric code without importing the NRT entrypoints.
 
 ### Integration tests (medium)
 
@@ -760,28 +766,35 @@ The `context` block is compared first. If device, dataset revision, weights, thr
 
 ### Running the NRT locally
 
+`tests/nrt/tennis` runs **both** suites (ball + players):
+
 ```bash
 # Use local datasets/ + models/ if present
 $env:SPORTAI_DEVICE="cpu"          # PowerShell
 python -m pytest tests/nrt/tennis -m nrt -s -rs
 ```
 
-First run without a baseline (or with `--update-baseline`) writes the baseline and **skips** the test so you cannot mistake “no comparison” for “all green”:
+First run without a baseline (or with `--update-baseline`) writes the baseline(s) and **skips** so you cannot mistake “no comparison” for “all green”:
 
 ```bash
 python -m pytest tests/nrt/tennis -m nrt -s --update-baseline
 ```
 
-Then commit `tests/baselines/tennis/tennis_ball_tracking.json`.
+Then commit:
+
+- `tests/baselines/tennis/tennis_ball_detection.json`
+- `tests/baselines/tennis/tennis_player_detection.json`
 
 Reports are written to:
 
 ```
-outputs/tests/tennis_ball_tracking/report.md
-outputs/tests/tennis_ball_tracking/report.json
+outputs/tests/tennis_ball_detection/report.md
+outputs/tests/tennis_ball_detection/report.json
+outputs/tests/tennis_player_detection/report.md
+outputs/tests/tennis_player_detection/report.json
 ```
 
-`report.md` shows, per video and metric: current value, baseline, delta, and status (`OK` / `DIFF` / `new baseline`).
+`report.md` shows, per video and metric: current value, baseline, delta, and status (`OK` / `DIFF` / `new baseline`). Player reports also include `mAP50` / `mAP50-95`.
 
 ### When the model or post-processing changes
 
@@ -830,7 +843,7 @@ Two workflows:
 | **Tests** | [`.github/workflows/pr-tests.yml`](.github/workflows/pr-tests.yml) | `unit`/`lint` matrix 3.11–3.12; `integration`/`coverage` on 3.11; NRT filtered |
 | **NRT Nightly** | [`.github/workflows/nrt-nightly.yml`](.github/workflows/nrt-nightly.yml) | Full NRT on `main` every night (Python 3.11, no path filter) |
 
-Model scores from the latest NRT on `main` are published to the repository **Wiki → Home** page (auto-generated from `report.json`).
+Model scores from the latest NRT on `main` are published to the repository **Wiki → Home** page (auto-generated from ball + player `report.json` files).
 
 ### Tests (`pr-tests.yml`)
 
@@ -907,13 +920,13 @@ Runs only if:
 Then:
 
 1. Install CPU torch + `requirements-test.txt` (Python 3.11)
-2. Cache `~/.cache/huggingface`
-3. `pytest tests/nrt/tennis -m nrt` with `SPORTAI_DEVICE=cpu`
-4. Append `report.md` to the GitHub Step Summary
-5. Upload artefacts: report folder + `tests/baselines/tennis/tennis_ball_tracking.json`
-6. On `main` only: publish Wiki Home via [`.github/actions/publish-wiki`](.github/actions/publish-wiki)
+2. Cache `~/.cache/huggingface` (keyed on both NRT tennis configs)
+3. `pytest tests/nrt/tennis -m nrt` with `SPORTAI_DEVICE=cpu` (ball **and** players)
+4. Append both `report.md` files to the GitHub Step Summary
+5. Upload artefacts: both report folders + both baseline JSON files
+6. On `main` only: publish Wiki Home via [`.github/actions/publish-wiki`](.github/actions/publish-wiki) (ball + player reports)
 
-`update_baseline` from `workflow_dispatch` is passed only to this job.
+`update_baseline` from `workflow_dispatch` is passed only to this job. Timeout is **90** minutes.
 
 Required repository secrets:
 
@@ -927,7 +940,7 @@ If `HF_TOKEN` is missing (e.g. PR from a fork), the NRT step is skipped with a w
 
 ### NRT Nightly (`nrt-nightly.yml`)
 
-Runs the full ball-tracking NRT on the default branch (`main`) without the path filter.
+Runs the full tennis NRT (ball + players) on the default branch (`main`) without the path filter.
 
 | Trigger | When |
 |---------|------|
@@ -938,15 +951,20 @@ Same setup as the NRT job in **Tests** (Python **3.11**, CPU torch, HF cache, py
 
 ### Wiki Home (model results)
 
-After each NRT on `main` (nightly, push, or manual), CI regenerates the wiki **Home** page from `outputs/tests/tennis_ball_tracking/report.json` using [`scripts/render_wiki_home.py`](scripts/render_wiki_home.py).
+After each NRT on `main` (nightly, push, or manual), CI regenerates the wiki **Home** page from:
+
+- `outputs/tests/tennis_ball_detection/report.json`
+- `outputs/tests/tennis_player_detection/report.json` (optional; skipped with a warning if missing)
+
+via [`scripts/render_wiki_home.py`](scripts/render_wiki_home.py) and [`.github/actions/publish-wiki`](.github/actions/publish-wiki).
 
 The page includes:
 
-- latest run status and context (device, weights, dataset revision, …)
-- a **Mermaid line chart** of TOTAL `F1-Score` vs date (one point per NRT publish)
-- a short history table, plus full metrics / TP-FP-TN-FN for the latest run
+- latest run status
+- **two** F1 history sections (`tennis_ball_tracking` and `tennis_player_detection` suites in `nrt-history.json`)
+- full metrics / counts for ball and for players (incl. `mAP50` / `mAP50-95` when present)
 
-History is stored in the wiki repo as `nrt-history.json` (not in SportAI git), capped at the last 120 points, with dedup by Actions run URL or commit+day. **PR NRT runs do not update the wiki.**
+History is stored in the wiki repo as `nrt-history.json` (not in SportAI git), capped at the last 120 points, with dedup by Actions run URL or commit+day **per suite**. **PR NRT runs do not update the wiki.**
 
 One-time bootstrap:
 
@@ -965,14 +983,13 @@ Large binaries are not in git (see `.gitignore`: `*.mp4`, `*.csv`, `*.pt`, `data
 Expected Hub layout:
 
 ```
-rnouteau/sportai-test-data          # dataset (private), tag v1
-└── tennis/ball_detection/test/
-    ├── clip_001.mp4
-    └── clip_001.csv
+rnouteau/sportai-test-data          # dataset (private)
+├── tennis/ball_detection/test/     # *.mp4 + *.csv
+└── tennis/player_detection/test/   # *.mp4 + *_players.csv
 
 rnouteau/sportai-models             # model repo (private)
-└── tennis/ball/
-    └── TENNIS_BALL_MODEL_04_11_2026.pt
+├── tennis/ball/TENNIS_BALL_MODEL_04_11_2026.pt
+└── tennis/player/TENNIS_PLAYER_MODEL_17_11_2026.pt
 ```
 
 Upload example (Hugging Face CLI `hf` ≥ 2.x):
@@ -983,10 +1000,12 @@ hf auth login
 
 hf repos create rnouteau/sportai-test-data --repo-type dataset --private
 hf upload rnouteau/sportai-test-data datasets/tennis/ball_detection/test tennis/ball_detection/test --repo-type dataset
-hf repos tag create rnouteau/sportai-test-data v1 --repo-type dataset
+hf upload rnouteau/sportai-test-data datasets/tennis/player_detection/test tennis/player_detection/test --repo-type dataset
+hf repos tag create rnouteau/sportai-test-data v2 --repo-type dataset
 
 hf repos create rnouteau/sportai-models --private
 hf upload rnouteau/sportai-models models/TENNIS_BALL_MODEL_04_11_2026.pt tennis/ball/TENNIS_BALL_MODEL_04_11_2026.pt
+hf upload rnouteau/sportai-models models/TENNIS_PLAYER_MODEL_17_11_2026.pt tennis/player/TENNIS_PLAYER_MODEL_17_11_2026.pt
 ```
 
 For GitHub Actions, create a **read-only** token at [huggingface.co/settings/tokens](https://huggingface.co/settings/tokens) and store it as the `HF_TOKEN` repository secret.

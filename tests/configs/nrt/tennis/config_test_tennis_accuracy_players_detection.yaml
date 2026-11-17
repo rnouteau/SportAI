@@ -1,0 +1,19 @@
+models:
+  - name: pipeline.models.tennis.TennisPlayerModel
+    config:
+      device: "cuda"
+      weight: "./models/TENNIS_PLAYER_MODEL_17_11_2026.pt"
+dataset:
+  local_dir: ./datasets/tennis/player_detection/test
+  repo_id: rnouteau/sportai-test-data
+  revision: v2
+  subset: tennis/player_detection/test
+weights:
+  repo_id: rnouteau/sportai-models
+  filename: tennis/player/TENNIS_PLAYER_MODEL_17_11_2026.pt
+evaluation:
+  iou_threshold: 0.5
+regression:
+  baseline: tests/baselines/tennis/tennis_player_detection.json
+  metrics: [Accuracy, Precision, Recall, F1-Score, mAP50, mAP50-95]
+  tolerance: 0.005

@@ -33,4 +33,16 @@ class Analysis(ABC, Generic[FrameT]):
         path = Path(path)
         path.parent.mkdir(parents=True, exist_ok=True)
         with open(path, "w", encoding="utf-8") as f:
-            json.dump(self.data, f, indent=4)
+            json.dump(self.data, f, indent=4, default=_json_default)
+
+
+def _json_default(obj: object) -> object:
+    """Convert NumPy scalars / arrays so json.dump does not raise TypeError."""
+    if hasattr(obj, "item"):
+        try:
+            return obj.item()
+        except (ValueError, AttributeError):
+            pass
+    if hasattr(obj, "tolist"):
+        return obj.tolist()
+    raise TypeError(f"Object of type {type(obj).__name__} is not JSON serializable")

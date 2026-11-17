@@ -12,6 +12,10 @@ class TennisFrame(Frame):
         player_data_list = self.data.get("players", [])
         return [TennisPlayerAtFrame(data) for data in player_data_list]
 
+    @players.setter
+    def players(self, players: list[TennisPlayerAtFrame] | None) -> None:
+        self.data["players"] = [player.data if player else None for player in (players or [])]
+
     @property
     def ball(self) -> TennisBall | None:
         ball_data = self.data.get("ball", None)

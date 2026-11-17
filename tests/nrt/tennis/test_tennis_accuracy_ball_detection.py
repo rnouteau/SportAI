@@ -8,7 +8,7 @@ import torch
 
 from tests.assets import resolve_dataset_dir, resolve_weights
 from tests.baseline import build_baseline, compare_to_baseline, load_baseline, save_baseline
-from tests.evaluation.ball_tracking import BallTrackingEvaluator
+from tests.evaluation.ball_detection_evaluation import BallTrackingEvaluator
 from utils import read_yaml
 from utils.paths import get_root
 
@@ -18,9 +18,9 @@ config_file = (
     / "configs"
     / "nrt"
     / "tennis"
-    / "config_test_tennis_accuracy_ball_tracking.yaml"
+    / "config_test_tennis_accuracy_ball_detection.yaml"
 )
-report_dir = get_root() / "outputs" / "tests" / "tennis_ball_tracking"
+report_dir = get_root() / "outputs" / "tests" / "tennis_ball_detection"
 
 
 @pytest.mark.nrt

@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from tests.evaluation.ball_tracking import BallTrackingEvaluator
+from tests.evaluation.ball_detection_evaluation import BallTrackingEvaluator
 
 
 def make_evaluator(min_dist: int = 10) -> BallTrackingEvaluator:

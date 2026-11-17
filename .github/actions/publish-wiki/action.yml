@@ -3,8 +3,12 @@ description: Append NRT F1 history and push Home.md to the GitHub Wiki
 
 inputs:
   report_json:
-    description: Path to the NRT report.json
+    description: Path to the ball NRT report.json
     required: true
+  report_json_player:
+    description: Optional path to the player NRT report.json
+    required: false
+    default: ""
   token:
     description: PAT with permission to push to the repository wiki
     required: true
@@ -44,6 +48,14 @@ runs:
           echo "skip=true" >> "$GITHUB_OUTPUT"
           exit 0
         fi
+        if [ -n "${{ inputs.report_json_player }}" ] && [ -f "${{ inputs.report_json_player }}" ]; then
+          echo "player_report=${{ inputs.report_json_player }}" >> "$GITHUB_OUTPUT"
+        else
+          echo "player_report=" >> "$GITHUB_OUTPUT"
+          if [ -n "${{ inputs.report_json_player }}" ]; then
+            echo "::warning::Player report not found at ${{ inputs.report_json_player }} — wiki Home without player section"
+          fi
+        fi
         echo "skip=false" >> "$GITHUB_OUTPUT"
 
     - name: Checkout wiki
@@ -59,8 +71,13 @@ runs:
       shell: bash
       run: |
         set -euo pipefail
+        EXTRA_ARGS=()
+        if [ -n "${{ steps.check.outputs.player_report }}" ]; then
+          EXTRA_ARGS+=(--report-player "${{ steps.check.outputs.player_report }}")
+        fi
         python "$GITHUB_WORKSPACE/scripts/render_wiki_home.py" \
           --report "${{ inputs.report_json }}" \
+          "${EXTRA_ARGS[@]}" \
           --output wiki-repo/Home.md \
           --history-in wiki-repo/nrt-history.json \
           --history-out wiki-repo/nrt-history.json \

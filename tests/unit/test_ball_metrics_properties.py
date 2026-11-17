@@ -5,11 +5,11 @@ from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
 from loguru import logger
 
-from tests.evaluation.ball_tracking import BallTrackingEvaluator
+from tests.evaluation.ball_detection_evaluation import BallTrackingEvaluator
 
 COUNTS = st.integers(min_value=0, max_value=1_000)
 
-logger.disable("tests.evaluation.ball_tracking")
+logger.disable("tests.evaluation.ball_detection_evaluation")
 
 _EVALUATOR = BallTrackingEvaluator(
     config={"evaluation": {"min_dist": 10}},

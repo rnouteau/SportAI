@@ -3,8 +3,8 @@ class Frame:
         self.data = data
 
     @property
-    def id(self) -> int | None:
-        return self.data.get("id", None)
+    def id(self) -> int:
+        return self.data["id"]
 
     @id.setter
     def id(self, value: int) -> None:
