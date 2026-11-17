@@ -105,14 +105,18 @@ class BallAnnotatorApplication:
         annotations_path = f"{self.directory}/{self.video_name}.csv"
         if not os.path.exists(annotations_path):
             return
+        print(f"import annotations from {annotations_path}")
         data = pd.read_csv(annotations_path).dropna(subset=["x", "y"])
         for row in data.itertuples(index=False):
             self.annotations[int(row.frame)] = (row.x, row.y)
 
+
     def export_annotations(self, event: Event) -> None:
         df = pd.DataFrame.from_dict(self.annotations, orient="index", columns=["x", "y"])
         df = df.reindex(range(self.frame_count))
-        df.to_csv(f"{self.directory}/{self.video_name}.csv", index_label="frame")
+        path = f"{self.directory}/{self.video_name}.csv"
+        df.to_csv(path, index_label="frame")
+        print(f"save annotations to{path}")
 
 
 if __name__ == "__main__":

@@ -1,0 +1,35 @@
+paths:
+  # Relative to the SportAI repo root
+  videos_dir: datasets/tennis/player_detection/videos
+  dataset_dir: datasets/tennis/player_detection/yolo
+  based_models_dir: trains/tennis/player_detection/models/based_models
+  trained_models_dir: trains/tennis/player_detection/models/trained_models
+
+dataset:
+  class_names:
+    - player
+  annotations_suffix: _players.csv
+  image_ext: .jpg
+  val_ratio: 0.2
+  split_seed: 42
+  # Used when fewer than 2 videos: split consecutive annotated frames into chunks
+  chunk_size: 32
+
+model:
+  name: tennis_player_yolo11s
+  weights: yolo11s.pt
+
+pipeline:
+  prepare_dataset: false
+  train: true
+
+train:
+  epochs: 100
+  imgsz: 640
+  batch: 16
+  device: "cuda"
+
+mlflow:
+  enabled: true
+  tracking_uri: mlflow.db
+  experiment_name: tennis_player_detection

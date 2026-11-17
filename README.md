@@ -94,13 +94,17 @@ SportAI/
 │   │   └── config_test_tennis_accuracy_ball_tracking.yaml
 │   └── nrt/tennis/                   # Slow model NRT (@pytest.mark.nrt)
 │       └── test_tennis_accuracy_ball_tracking.py
+├── models/
+│   ├── based_models/                 # Pretrained checkpoints (e.g. yolo11s.pt)
+│   └── trained_models/               # Fine-tuned weights (Ultralytics runs + stable .pt)
 ├── tools/                            # Manual annotation / video helpers
 │   ├── ball_anotator.py              # Click ball positions on frames
+│   ├── player_annotator.py           # Draw player bboxes (+ YOLO pre-annotate)
 │   └── video_cuter.py                # Cut clips from a match video
 ├── trains/                           # Training code (not imported by pipeline)
 │   └── tennis/
 │       ├── ball_detection/           # TrackNet training + TorchScript export
-│       └── player_detection/         # YOLO player detection (WIP)
+│       └── player_detection/         # YOLO player detection (prepare + train + MLflow)
 ├── utils/
 │   ├── paths.py                      # Project root helper
 │   ├── read_yaml.py
@@ -466,14 +470,14 @@ pip install -r requirements-test.txt
 
 ### Weights
 
-Place the TorchScript ball model at:
+| Role | Path | Notes |
+|------|------|--------|
+| Ball (TorchScript) | `models/TENNIS_BALL_MODEL_04_11_2026.pt` | Loaded by `TennisBallModel` via `torch.jit.load` |
+| YOLO pretrained | `models/based_models/yolo11s.pt` | Base weights for player training / annotator pre-label |
+| YOLO fine-tuned | `models/trained_models/tennis_player_yolo11s.pt` | Stable copy of Ultralytics `best.pt` after train |
 
-```
-models/TENNIS_BALL_MODEL_04_11_2026.pt
-```
-
-or point `weight:` in the config to another path.
-`.pt` files are gitignored; in CI they are downloaded from Hugging Face.
+Or point `weight:` in the pipeline config to another path.
+`.pt` files and `models/{based,trained}_models/**` are gitignored (dirs kept via `.gitkeep`); in CI ball weights are downloaded from Hugging Face.
 
 ---
 
@@ -534,6 +538,29 @@ frame,x,y
 
 **Coordinate note:** the annotator displays the frame centered in a 1280×720 canvas without resizing. Pixel coordinates match the video only when the video is 1280×720. For other resolutions, convert using the canvas offset `(640 - width/2, 360 - height/2)`.
 
+### Player annotator — `tools/player_annotator.py`
+
+GUI to label player bounding boxes. If no CSV exists next to the video, it pre-annotates with YOLO (`models/based_models/yolo11s.pt`, max 2 boxes per frame).
+
+```bash
+python tools/player_annotator.py --video_path path/to/clip.mp4
+```
+
+| Key | Action |
+|-----|--------|
+| Drag (click + release) | Add a bbox on the current frame |
+| `←` / `→` | Previous / next frame |
+| `d` | Delete the bbox under the mouse |
+| `s` | Export CSV next to the video (`clip_players.csv`) |
+| `q` | Quit |
+
+CSV format (one row per box):
+
+```
+frame,class_id,x0,y0,x1,y1
+0,0,120.0,200.0,340.0,560.0
+```
+
 ### Video cuter — `tools/video_cuter.py`
 
 ```bash
@@ -559,8 +586,11 @@ python utils/video_downloader.py
 
 ## 12. Training and exporting a model
 
+Training packages under `trains/` are **not** imported by `pipeline/`.
+
+### Ball detection (TrackNet)
+
 Training code lives under `trains/tennis/ball_detection/` (TrackNet family: v2 / v4 / v5 / WASB).
-That package is **not** imported by `pipeline/`.
 
 After training, export a TorchScript artefact:
 
@@ -574,7 +604,35 @@ python export.py \
 
 `export.py` builds the architecture, loads the state dict, traces with a dummy `(1, C, 288, 512)` tensor, and saves a standalone `.pt` file that `TennisBallModel` loads with `torch.jit.load`.
 
-Player detection training (YOLO) is sketched under `trains/tennis/player_detection/` and is not wired into the pipeline yet.
+### Player detection (YOLO)
+
+Code: `trains/tennis/player_detection/` (dataset prep + Ultralytics train + MLflow).
+
+1. Put clips and annotations under `datasets/tennis/player_detection/videos/`
+   (`clip.mp4` + `clip_players.csv` from the player annotator).
+2. Place the pretrained checkpoint at `models/based_models/yolo11s.pt`.
+3. Train from the package directory:
+
+```bash
+cd trains/tennis/player_detection
+python train.py --config configs/train.yaml
+```
+
+What it does:
+
+- Builds a YOLO dataset under `datasets/tennis/player_detection/yolo/` (seeded train/val split by video, or temporal chunks if a single video).
+- Fine-tunes from `models/based_models/`, writes Ultralytics outputs under `models/trained_models/<name>/`.
+- Copies `best.pt` to the stable path `models/trained_models/tennis_player_yolo11s.pt`.
+- Logs metrics to SQLite `mlflow.db` when `mlflow.enabled: true` in the config.
+
+Inspect runs:
+
+```bash
+# from the SportAI repo root
+mlflow ui --backend-store-uri sqlite:///mlflow.db
+```
+
+Player detection is not wired into the inference pipeline yet (see §17).
 
 ---
 
@@ -950,7 +1008,7 @@ Keep test clips short (5–15 seconds). Frame I/O is sequential (`iter_triplets`
 ```yaml
 - name: pipeline.models.tennis.TennisPlayerModel
   config:
-    weight: ./models/players.pt
+    weight: ./models/trained_models/tennis_player_yolo11s.pt
     device: cuda
 ```
 

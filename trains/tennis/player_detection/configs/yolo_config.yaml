@@ -1,7 +1,0 @@
-
-data:
-  path: "/datasets/tennis/player_detection/"
-model:
-  name: "yolo26n"
-model_params:
-  epochs: 100

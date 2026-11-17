@@ -1,6 +1,10 @@
 .venv
 datasets
 outputs
+runs/
+mlruns/
+mlflow.db
+mlflow.db-*
 *.csv
 *.mp4
 *.pyc
@@ -8,3 +12,5 @@ outputs
 *.json
 !tests/baselines/**/*.json
 .hypothesis
+models/
+!models/.gitkeep
