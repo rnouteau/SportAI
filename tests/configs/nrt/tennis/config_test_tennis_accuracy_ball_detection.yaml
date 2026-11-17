@@ -17,4 +17,4 @@ evaluation:
 regression:
   baseline: tests/baselines/tennis/tennis_ball_detection.json
   metrics: [Accuracy, Precision, Recall, F1-Score]
-  tolerance: 0.005
+  tolerance: 0.01

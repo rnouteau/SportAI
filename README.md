@@ -469,7 +469,7 @@ pre-commit install   # once per clone: run hooks on every git commit
 On CI (and optionally locally for CPU-only), install the CPU build of PyTorch first:
 
 ```bash
-pip install torch==2.9.0 --index-url https://download.pytorch.org/whl/cpu
+pip install torch==2.9.0 torchvision==0.24.0 --index-url https://download.pytorch.org/whl/cpu
 pip install -r requirements-test.txt
 ```
 
