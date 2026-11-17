@@ -13,4 +13,4 @@ mlflow.db-*
 !tests/baselines/**/*.json
 .hypothesis
 models/
-!models/.gitkeep
+!pipeline/models/
