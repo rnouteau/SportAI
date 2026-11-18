@@ -1,13 +1,17 @@
 models:
-  - name: pipeline.models.tennis.TennisBallModel
-    config:
-      device: "cuda"
-      threshold: 0.5
-      weight: "./models/TENNIS_BALL_MODEL_04_11_2026.pt"
-  - name: pipeline.models.tennis.TennisPlayerModel
+  # - name: pipeline.models.tennis.TennisBallModel
+  #   config:
+  #     device: "cuda"
+  #     threshold: 0.5
+  #     weight: "./models/TENNIS_BALL_MODEL_04_11_2026.pt"
+  # - name: pipeline.models.tennis.TennisPlayerModel
+  #   config:
+  #       device: "cuda"
+  #       weight: "./models/TENNIS_PLAYER_MODEL_17_11_2026.pt"
+  - name: pipeline.models.tennis.TennisCourtModel
     config:
         device: "cuda"
-        weight: "./models/TENNIS_PLAYER_MODEL_17_11_2026.pt"
+        weight: "./models/TENNIS_COURT_MODEL_18_11_2026.pt"
 # stats:
 #   - name: ball_stats
 outputs:

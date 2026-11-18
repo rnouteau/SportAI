@@ -75,6 +75,7 @@ class VideoCuterApplication:
         self.root.bind("<Control-Left>", lambda e: self.step(-self.fps_int * 10))
         self.root.bind("<Up>", lambda e: self.set_active_scale(self.start_scale))
         self.root.bind("<Down>", lambda e: self.set_active_scale(self.end_scale))
+        self.root.bind("e", lambda e: self.export_frame())
         self.root.focus_set()
 
         self.menubar = Menu(self.root)
@@ -86,6 +87,10 @@ class VideoCuterApplication:
         self.file_menu.add_command(
             label="New cut (precise, re-encode)",
             command=lambda: self.cut(precise=True),
+        )
+        self.file_menu.add_command(
+            label="Export current frame as image",
+            command=self.export_frame,
         )
         self.file_menu.add_command(label="Quit", command=self.close_window)
         self.menubar.add_cascade(label="File", menu=self.file_menu)
@@ -117,6 +122,23 @@ class VideoCuterApplication:
         scale.set(new_val)
         self.seek(new_val)
         return "break"
+
+    def export_frame(self) -> None:
+        """Save the currently displayed frame as a PNG next to the source video."""
+        frame_idx = self.current_frame if self.current_frame >= 0 else int(self.active_scale.get())
+        frame_idx = max(0, min(self.frame_count - 1, frame_idx))
+
+        self.cap.set(cv2.CAP_PROP_POS_FRAMES, frame_idx)
+        ret, frame = self.cap.read()
+        if not ret:
+            logger.error(f"Could not read frame {frame_idx}")
+            return
+
+        out_path = self.directory / f"{self.video_name}_frame_{frame_idx}.png"
+        if not cv2.imwrite(str(out_path), frame):
+            logger.error(f"Failed to write image: {out_path}")
+            return
+        logger.info(f"Frame saved: {out_path}")
 
     def cut(self, precise: bool = False) -> None:
         start_frame = int(self.position1.get())

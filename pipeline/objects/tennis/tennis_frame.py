@@ -1,5 +1,6 @@
 from pipeline.objects.frame import Frame
 from pipeline.objects.tennis.tennis_ball import TennisBall
+from pipeline.objects.tennis.tennis_homography import TennisHomography
 from pipeline.objects.tennis.tennis_player_at_frame import TennisPlayerAtFrame
 
 
@@ -24,3 +25,12 @@ class TennisFrame(Frame):
     @ball.setter
     def ball(self, ball: TennisBall | None) -> None:
         self.data["ball"] = ball.data if ball else None
+
+    @property
+    def homography(self) -> TennisHomography | None:
+        homography_data = self.data.get("homography")
+        return TennisHomography(homography_data) if homography_data else None
+
+    @homography.setter
+    def homography(self, homography: TennisHomography | None) -> None:
+        self.data["homography"] = homography.data if homography else None

@@ -9,6 +9,9 @@ from ultralytics import YOLO
 from scripts.prepare_dataset import prepare_dataset
 from utils.config import load_config, resolve_path
 
+import mlflow
+from ultralytics import settings
+
 
 def _configure_mlflow(mlflow_cfg: dict, run_name: str) -> None:
     if not mlflow_cfg.get("enabled", False):
@@ -17,9 +20,6 @@ def _configure_mlflow(mlflow_cfg: dict, run_name: str) -> None:
         os.environ.pop("MLFLOW_RUN", None)
         logger.info("MLflow disabled")
         return
-
-    import mlflow
-    from ultralytics import settings
 
     # Recent MLflow rejects the file store; use SQLite (Windows-safe via as_posix).
     db_path = resolve_path(mlflow_cfg.get("tracking_uri", "mlflow.db"))

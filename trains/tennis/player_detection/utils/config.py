@@ -2,7 +2,6 @@ from pathlib import Path
 
 import yaml
 
-# utils/ -> player_detection/ -> tennis/ -> trains/ -> repo root
 REPO_ROOT = Path(__file__).resolve().parents[4]
 
 

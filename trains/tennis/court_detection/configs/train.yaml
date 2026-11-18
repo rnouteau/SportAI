@@ -1,0 +1,56 @@
+paths:
+  # Relative to the SportAI repo root
+  ndjson: datasets/tennis/court_detection/tennis-court-keypoint-detection (2).ndjson
+  images_dir: datasets/tennis/court_detection/images
+  dataset_dir: datasets/tennis/court_detection/yolo
+  based_models_dir: trains/tennis/court_detection/models/based_models
+  trained_models_dir: trains/tennis/court_detection/models/trained_models
+
+dataset:
+  class_names:
+    - tennis court
+  annotations_suffix: _court.csv
+  image_exts: [.png, .jpg, .jpeg, .webp]
+  val_ratio: 0.2
+  split_seed: 42
+  min_keypoints: 4
+  bbox_padding: 0.02
+
+model:
+  name: tennis_court_yolo11s_pose
+  # Architecture yaml (14 kpts). Pretrained COCO pose weights loaded after.
+  architecture: configs/yolo11s-court-pose.yaml
+  weights: yolo11s-pose.pt
+
+pipeline:
+  import_ndjson: true
+  prepare_dataset: false
+  train: true
+
+train:
+  epochs: 100
+  imgsz: 640
+  batch: 16
+  device: "cuda"
+  # Train-time aug (court-safe): photometry + mild geometry; no mosaic/mixup.
+  augment:
+    hsv_h: 0.015
+    hsv_s: 0.5
+    hsv_v: 0.3
+    degrees: 0.0
+    translate: 0.08
+    scale: 0.3
+    shear: 0.0
+    perspective: 0.0
+    fliplr: 0.5
+    flipud: 0.0
+    mosaic: 0.0
+    mixup: 0.0
+    copy_paste: 0.0
+    erasing: 0.0
+    bgr: 0.0
+
+mlflow:
+  enabled: true
+  tracking_uri: mlflow.db
+  experiment_name: tennis_court_detection
