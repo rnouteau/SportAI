@@ -238,7 +238,7 @@ class Analysis(ABC, Generic[FrameT]):
     data: dict  # the JSON document
 ```
 
-`TennisAnalysis(Analysis[TennisFrame])` sets `frame_class = TennisFrame`, so every frame is a `TennisFrame` with `.ball`, `.players`, and optional `.homography`.
+`TennisAnalysis(Analysis[TennisFrame])` sets `frame_class = TennisFrame`, so every frame is a `TennisFrame` with `.ball`, `.players`, and optional `.homography`. Empty frames come from `TennisFrame.empty(id)` (base `Frame.empty` is only `{"id": …}`).
 
 ---
 
@@ -251,14 +251,16 @@ CLI / test
 run_pipeline(sport, video_path, config)
    │
    ├─ VideoReader(video_path)
-   ├─ load_class(config["analysis"]).from_video(...)   → empty frames
+   ├─ load_class(config["analysis"]).from_video(...)
+   │      → frames via frame_class.empty(i)  (tennis: ball=null, players=[])
    │
    ├─ for each model in config["models"]:
    │      load_class(name)(config)
    │      model.run(video_reader, analysis)   → fills ball / players / homography
    │
-   ├─ (optional) for each stat in config["stats"]:
-   │      stat.run(video_reader, analysis)
+   ├─ for each stat in config["stats"] (optional):
+   │      load_class(name)(config)
+   │      stat.run(video_reader, analysis)    → before video_reader.release()
    │
    └─ analysis.save_json(...)   or return analysis.data if test=True
 ```
@@ -437,17 +439,25 @@ NRT court accuracy uses **still images + YOLO-pose labels** via `CourtDetectionE
 
 ## 7. Stats
 
-Stats consume a filled `Analysis`. Example:
+Stats consume a filled `Analysis` and run **after** models, **before** `video_reader.release()`. Example:
 
 ```python
 class ExampleStat(Stat[TennisAnalysis]):
+    def __init__(self, config: dict | None = None) -> None:
+        super().__init__(config)
+
     def run(self, video_reader, analysis: TennisAnalysis) -> None:
-        for frame in analysis.frames:
-            if frame.ball:
-                logger.info(f"frame {frame.id}: ball at {frame.ball.position}")
+        detected = sum(1 for f in analysis.frames if f.ball)
+        analysis.data.setdefault("stats", {})["ball_detections"] = detected
 ```
 
-Stats are listed in the YAML under `stats:` the same way as models (the loop in `run.py` can be re-enabled when you add real stats). A typical tennis stat would write values into `analysis.data["stats"]`, for example detection rate or estimated ball speed.
+List them under `stats:` like models (FQCN + optional `config`). Production YAML keeps an example commented:
+
+```yaml
+# stats:
+#   - name: pipeline.stats.tennis.ExampleStat
+#     config: {}
+```
 
 ---
 
@@ -471,6 +481,9 @@ models:
     config:
       device: "cuda"
       weight: "./models/TENNIS_COURT_MODEL_18_11_2026.pt"
+# stats:
+#   - name: pipeline.stats.tennis.ExampleStat
+#     config: {}
 outputs:
   path: ./outputs/tennis/stats.json
 ```
@@ -480,6 +493,7 @@ outputs:
 | `analysis` | Fully-qualified `Analysis` class path (required; loaded like models) |
 | `models[].name` | Fully-qualified Python class path |
 | `models[].config` | Passed to `Model.__init__` |
+| `stats[].name` | Optional FQCN stats (same load pattern as models; run before release) |
 | `outputs.path` | Where `save_json` writes the analysis |
 
 ### NRT configs — `tests/configs/nrt/tennis/`
@@ -1278,18 +1292,18 @@ Follow the existing patterns (`TennisBallModel`, `TennisPlayerModel`, `TennisCou
 4. Export the class from `pipeline/models/tennis/__init__.py`.
 5. Add an entry under `models:` in the YAML.
 
-No change to `run.py` for a new *tennis* model (analysis factory is still tennis-hardcoded when adding a new *sport*).
+No change to `run.py` for a new *tennis* model.
 
 ### Add a new stat
 
-1. Create `pipeline/stats/tennis/my_stat.py` inheriting from `Stat[TennisAnalysis]`.
+1. Create `pipeline/stats/tennis/my_stat.py` inheriting from `Stat[TennisAnalysis]` (`__init__(self, config=None)`).
 2. Implement `run(self, video_reader, analysis: TennisAnalysis)`.
 3. Read `analysis.frames`, write into `analysis.data.setdefault("stats", {})`.
-4. Export it and list it under `stats:` in the config (enable the stats loop in `run.py` if still commented).
+4. Export it and list it under `stats:` in the config (loop already wired in `run.py`).
 
 ### Add a new sport
 
-1. Add `pipeline/objects/<sport>/` with `<Sport>Analysis`, `<Sport>Frame`, and domain objects.
+1. Add `pipeline/objects/<sport>/` with `<Sport>Analysis`, `<Sport>Frame` (override `empty(frame_id)` for the frame JSON template), and domain objects.
 2. Point `analysis:` in `configs/<sport>_config.yaml` at the new Analysis FQCN (`run_pipeline` loads it like models — no edit to `run.py`).
 3. Add `pipeline/models/<sport>/` and `pipeline/stats/<sport>/`.
 4. Add a test suite under `tests/nrt/<sport>/` (reuse [`tests/nrt/harness.py`](tests/nrt/harness.py)).

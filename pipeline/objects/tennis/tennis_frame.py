@@ -8,6 +8,10 @@ class TennisFrame(Frame):
     def __init__(self, data: dict) -> None:
         super().__init__(data)
 
+    @classmethod
+    def empty(cls, frame_id: int) -> dict:
+        return {"id": frame_id, "players": [], "ball": None}
+
     @property
     def players(self) -> list[TennisPlayerAtFrame]:
         player_data_list = self.data.get("players", [])

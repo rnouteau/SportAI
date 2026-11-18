@@ -8,8 +8,8 @@ AnalysisT = TypeVar("AnalysisT", bound=Analysis[Any])
 
 
 class Stat(ABC, Generic[AnalysisT]):
-    def __init__(self) -> None:  # noqa: B027
-        pass
+    def __init__(self, config: dict | None = None) -> None:
+        self.config = config or {}
 
     @abstractmethod
     def run(self, video_reader: VideoReader, analysis: AnalysisT) -> None:

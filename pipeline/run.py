@@ -45,6 +45,15 @@ def run_pipeline(
             logger.exception(f"Error occurred while running model {model_name}: {e}")
             raise
 
+    for stat_cfg in config.get("stats", []):
+        stat_name = stat_cfg["name"]
+        try:
+            stat = load_class(stat_name)(stat_cfg.get("config", {}))
+            stat.run(video_reader, analysis)
+        except Exception as e:
+            logger.exception(f"Error occurred while running stat {stat_name}: {e}")
+            raise
+
     video_reader.release()
 
     if test:

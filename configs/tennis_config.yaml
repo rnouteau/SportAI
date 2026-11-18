@@ -14,6 +14,7 @@ models:
         device: "cuda"
         weight: "./models/TENNIS_COURT_MODEL_18_11_2026.pt"
 # stats:
-#   - name: ball_stats
+#   - name: pipeline.stats.tennis.ExampleStat
+#     config: {}
 outputs:
   path: ./outputs/tennis/stats.json
