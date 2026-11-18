@@ -7,7 +7,7 @@ from pipeline.objects.tennis.tennis_frame import TennisFrame
 
 @pytest.mark.unit
 def test_create_from_tuple(position=(10.5, 20), confidence=0.91) -> None:
-    ball = TennisBall.create(position, confidence)
+    ball = TennisBall.create(position=list(position), confidence=confidence)
 
     assert isinstance(ball, TennisBall)
     assert isinstance(ball, Ball)
@@ -18,16 +18,14 @@ def test_create_from_tuple(position=(10.5, 20), confidence=0.91) -> None:
 
 @pytest.mark.unit
 def test_create_from_list() -> None:
-    position = [100, 200]
-    confidence = 0.5
-    ball = TennisBall.create(position, confidence)
+    ball = TennisBall.create(position=[100, 200], confidence=0.5)
 
     assert ball.position == [100, 200]
 
 
 @pytest.mark.unit
 def test_velocity_default_and_setter() -> None:
-    ball = TennisBall.create(position=(1.0, 2.0), confidence=0.8)
+    ball = TennisBall.create(position=[1.0, 2.0], confidence=0.8)
 
     assert ball.velocity is None
 
@@ -61,7 +59,7 @@ def test_frame_ball_setter_writes_into_json() -> None:
 
     assert frame.ball is None
 
-    frame.ball = TennisBall.create([10.0, 51.0], 0.76)
+    frame.ball = TennisBall.create(position=[10.0, 51.0], confidence=0.76)
 
     assert frame.ball.position == [10.0, 51.0]
     assert frame.data["ball"] == {"position": [10.0, 51.0], "confidence": 0.76}
@@ -70,3 +68,11 @@ def test_frame_ball_setter_writes_into_json() -> None:
 
     assert frame.ball is None
     assert frame.data["ball"] is None
+
+
+@pytest.mark.unit
+def test_position_confidence_setters_without_create() -> None:
+    ball = TennisBall({})
+    ball.position = (3.0, 4.0)
+    ball.confidence = 0.5
+    assert ball.data == {"position": [3.0, 4.0], "confidence": 0.5}

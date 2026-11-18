@@ -19,7 +19,10 @@ class FakeTennisBallModel(Model[TennisAnalysis]):
 
     def run(self, video_reader: VideoReader, analysis: TennisAnalysis) -> None:
         for frame in analysis.frames:
-            frame.ball = TennisBall.create(position=(10.0, 20.0), confidence=0.9)
+            ball = TennisBall.create()
+            ball.position = (10.0, 20.0)
+            ball.confidence = 0.9
+            frame.ball = ball
 
 
 class FakeBallCountStat(Stat[TennisAnalysis]):

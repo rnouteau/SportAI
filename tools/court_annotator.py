@@ -19,7 +19,9 @@ for _path in (_REPO_ROOT, _TOOLS_DIR):
     if str(_path) not in sys.path:
         sys.path.insert(0, str(_path))
 
-from court_schema import (  # noqa: E402
+from court_yolo import load_pose_label_points, write_pose_label  # noqa: E402
+from pipeline.objects.tennis.court_homography import estimate_court_to_image  # noqa: E402
+from pipeline.objects.tennis.tennis_court_schema import (  # noqa: E402
     EDGES,
     N_POINTS,
     POINT_BY_ID,
@@ -27,7 +29,6 @@ from court_schema import (  # noqa: E402
     model_xy,
     overlay_segments_m,
 )
-from court_yolo import load_pose_label_points, write_pose_label  # noqa: E402
 
 CANVAS_W = 1280
 CANVAS_H = 720
@@ -257,25 +258,19 @@ class CourtAnnotatorApplication:
             logger.error("Need at least 4 annotated points for homography")
             return
 
-        src = []
-        dst = []
-        for pid, (ix, iy) in sorted(self.annotations.items()):
-            mx, my = model_xy(pid)
-            src.append([mx, my])
-            dst.append([ix, iy])
-        src_arr = np.asarray(src, dtype=np.float64)
-        dst_arr = np.asarray(dst, dtype=np.float64)
-
-        h_mat, mask = cv2.findHomography(src_arr, dst_arr, method=cv2.RANSAC, ransacReprojThreshold=5.0)
+        pids = sorted(self.annotations)
+        image_pts = [self.annotations[pid] for pid in pids]
+        h_mat = estimate_court_to_image(image_pts, pids)
         if h_mat is None:
             logger.error("Homography estimation failed")
             return
 
-        inliers = int(mask.sum()) if mask is not None else len(src)
+        src_arr = np.asarray([list(model_xy(pid)) for pid in pids], dtype=np.float64)
+        dst_arr = np.asarray(image_pts, dtype=np.float64)
         projected = cv2.perspectiveTransform(src_arr.reshape(-1, 1, 2), h_mat).reshape(-1, 2)
         mean_err = float(np.mean(np.linalg.norm(projected - dst_arr, axis=1)))
         logger.info(
-            f"Homography OK — inliers {inliers}/{len(src)}, mean reprojection error {mean_err:.2f}px"
+            f"Homography OK — {len(pids)} points, mean reprojection error {mean_err:.2f}px"
         )
 
         overlay = self.bgr.copy()

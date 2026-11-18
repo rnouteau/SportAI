@@ -25,7 +25,10 @@ class FakeTennisPlayerModel(Model[TennisAnalysis]):
             assert frame.id is not None
             if frame.id % 2 == 0:
                 frame.players = [
-                    TennisPlayerAtFrame.create(bbox=(10.0, 10.0, 50.0, 80.0), confidence=0.9)
+                    TennisPlayerAtFrame.create(
+                        position=[10.0, 10.0, 50.0, 80.0],
+                        confidence=0.9,
+                    )
                 ]
             else:
                 frame.players = []

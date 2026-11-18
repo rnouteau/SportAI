@@ -5,7 +5,6 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-from tools.court_schema import N_POINTS
 from tools.court_yolo import (
     decode_pose_label_line,
     encode_pose_label_line,
@@ -13,6 +12,7 @@ from tools.court_yolo import (
     write_pose_label,
 )
 
+from pipeline.objects.tennis.tennis_court_schema import N_POINTS
 from tests.evaluation.court_detection_evaluation import N_KEYPOINTS, parse_yolo_pose_label
 
 

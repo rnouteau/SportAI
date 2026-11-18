@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from tools.court_schema import N_POINTS
+from pipeline.objects.tennis.tennis_court_schema import N_POINTS
 
 DEFAULT_BBOX_PADDING = 0.02
 

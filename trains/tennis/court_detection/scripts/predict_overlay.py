@@ -15,7 +15,12 @@ REPO_ROOT = Path(__file__).resolve().parents[4]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from tools.court_schema import N_POINTS, POINT_BY_ID, model_xy, overlay_segments_m  # noqa: E402
+from pipeline.objects.tennis.tennis_court_homography import estimate_court_to_image  # noqa: E402
+from pipeline.objects.tennis.tennis_court_schema import (  # noqa: E402
+    N_POINTS,
+    POINT_BY_ID,
+    overlay_segments_m,
+)
 
 
 def imread_unicode(path: Path) -> np.ndarray:
@@ -66,12 +71,11 @@ def draw_homography_overlay(image: np.ndarray, points: dict[int, tuple[float, fl
     if len(points) < 4:
         logger.warning("Fewer than 4 keypoints; drawing points only (no homography)")
     else:
-        src = np.asarray([model_xy(pid) for pid in sorted(points)], dtype=np.float64)
-        dst = np.asarray([points[pid] for pid in sorted(points)], dtype=np.float64)
-        h_mat, mask = cv2.findHomography(src, dst, method=cv2.RANSAC, ransacReprojThreshold=5.0)
+        pids = sorted(points)
+        image_pts = [points[pid] for pid in pids]
+        h_mat = estimate_court_to_image(image_pts, pids)
         if h_mat is not None:
-            inliers = int(mask.sum()) if mask is not None else len(src)
-            logger.info("Homography inliers {}/{}", inliers, len(src))
+            logger.info("Homography OK — {} points", len(pids))
             for (x0, y0), (x1, y1) in overlay_segments_m():
                 pts = np.array([[[x0, y0], [x1, y1]]], dtype=np.float64)
                 proj = cv2.perspectiveTransform(pts, h_mat).reshape(-1, 2)

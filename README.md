@@ -65,16 +65,21 @@ SportAI/
 │   ├── objects/                      # Typed views over the analysis JSON
 │   │   ├── analysis.py               # Analysis[FrameT] base
 │   │   ├── frame.py / ball.py / player_at_frame.py / homography.py
+│   │   ├── court_position.py / legs.py
 │   │   └── tennis/
 │   │       ├── tennis_analysis.py
 │   │       ├── tennis_frame.py
 │   │       ├── tennis_ball.py
 │   │       ├── tennis_player_at_frame.py
-│   │       └── tennis_homography.py
+│   │       ├── tennis_homography.py
+│   │       ├── tennis_court_schema.py  # 14 ITF keypoints + edges (metres) — SSoT
+│   │       └── court_homography.py     # findHomography image↔court helpers
 │   └── stats/
 │       ├── stat.py                   # Abstract Stat[AnalysisT] base
 │       └── tennis/
-│           └── example_stat.py
+│           ├── example_stat.py
+│           └── legs_court.py         # Project player legs → CourtPosition
+
 ├── tests/
 │   ├── assets.py                     # Local files or Hugging Face download
 │   ├── baseline.py                   # Build / compare metric baselines
@@ -87,10 +92,14 @@ SportAI/
 │   ├── unit/                         # Fast pure-logic tests (@pytest.mark.unit)
 │   │   ├── test_tennis_ball.py
 │   │   ├── test_analysis_json.py
+│   │   ├── test_frame_empty.py
 │   │   ├── test_ball_metrics.py
 │   │   ├── test_ball_metrics_properties.py
 │   │   ├── test_player_detection_metrics.py
 │   │   ├── test_court_detection_metrics.py
+│   │   ├── test_court_yolo.py
+│   │   ├── test_court_homography.py
+│   │   ├── test_resolve_device.py
 │   │   ├── test_run_pipeline_analysis.py
 │   │   └── test_baseline.py
 │   ├── integration/                  # Medium tests (@pytest.mark.integration)
@@ -119,7 +128,6 @@ SportAI/
 ├── tools/                            # Manual annotation / video helpers
 │   ├── ball_anotator.py              # Click ball positions on frames
 │   ├── player_annotator.py           # Draw player bboxes (+ YOLO pre-annotate)
-│   ├── court_schema.py               # 14 ITF court keypoints + edges (metres) — SSoT
 │   ├── court_yolo.py                 # Shared YOLO-pose encode/decode for court labels
 │   ├── court_annotator.py            # Label court keypoints → .txt (+ CSV) + overlay
 │   └── video_cuter.py                # Cut clips / export a still frame
@@ -314,21 +322,28 @@ data = run_pipeline(
     },
     {
       "id": 3,
-      "players": [],
+      "players": [
+        {
+          "position": [120.0, 200.0, 340.0, 560.0],
+          "confidence": 0.91,
+          "court_position": { "x": 1.2, "y": -4.5 }
+        }
+      ],
       "ball": {
         "position": [702, 492],
         "confidence": 0.6467
       },
       "homography": {
         "keypoints": [[120.1, 80.2], "... 14 points ..."],
-        "confidences": [0.95, "..."]
+        "confidences": [0.95, "..."],
+        "matrix": [[ "... 3x3 image→metres ..." ]]
       }
     }
   ]
 }
 ```
 
-`homography` is written by `TennisCourtModel` (14 court keypoints + confidences). It is not a full OpenCV `H` matrix yet — only the pose keypoints used downstream for court geometry.
+`homography` is written by `TennisCourtModel`: 14 court keypoints + confidences, plus an OpenCV `matrix` (3×3) mapping **image pixels → court metres** (origin = net centre) when ≥4 confident points allow `findHomography`.
 
 ### Object mapping
 
@@ -337,8 +352,9 @@ data = run_pipeline(
 | root | `TennisAnalysis` | `analysis.data`, `analysis.frames` |
 | `frames[i]` | `TennisFrame` | `frame.id`, `frame.ball`, `frame.players`, `frame.homography` |
 | `frames[i].ball` | `TennisBall` | `frame.ball.position`, `frame.ball.confidence` |
-| `frames[i].players[j]` | `TennisPlayerAtFrame` | `player.bbox`, `player.confidence` |
-| `frames[i].homography` | `TennisHomography` | `frame.homography.keypoints`, `frame.homography.confidences` |
+| `frames[i].players[j]` | `TennisPlayerAtFrame` | `player.bbox`, `player.confidence`, `player.legs` |
+| `frames[i].players[j].court_position` | `CourtPosition` via `player.legs.court` | `x`, `y` (m), `distance_to_center_m` |
+| `frames[i].homography` | `TennisHomography` | `keypoints`, `confidences`, `matrix` |
 
 Each class keeps a reference to its dict (`self.data`). Properties read/write that dict. There is no separate serialization step.
 
@@ -397,7 +413,7 @@ File: `pipeline/models/tennis/tennis_ball_model.py`
 6. Write `TennisBall.create(position=(x, y), confidence=max_heatmap)` into the frame.
 
 **Why TorchScript?**
-Training code lives under `trains/` and pulls datasets, losses, optimizers, etc. Production only needs the exported graph. That keeps the deployment surface small and stable.
+Ball training/export lives outside this repo. Production only loads the exported graph (`torch.jit.load` + `map_location` via `resolve_device`), which keeps the deployment surface small and stable.
 
 ### TennisPlayerModel
 
@@ -432,7 +448,7 @@ File: `pipeline/models/tennis/tennis_court_model.py`
 1. Walk the video once via `video_reader.iter_frames()`.
 2. `YOLO.predict(..., classes=[0], stream=True, device=self.device)` (class `tennis court`).
 3. Keep the best instance by mean keypoint confidence; read `keypoints.xy` (14×2).
-4. Write `TennisHomography.create(pts, confs)` into `frame.homography`.
+4. Estimate `H` (image→metres) via `estimate_image_to_court` ; write `TennisHomography.create(pts, confs, matrix=…)`.
 
 NRT court accuracy uses **still images + YOLO-pose labels** via `CourtDetectionEvaluator` (not `run_pipeline` on video). Pipeline court inference on video is what fills `frame.homography` in production runs.
 
@@ -440,24 +456,23 @@ NRT court accuracy uses **still images + YOLO-pose labels** via `CourtDetectionE
 
 ## 7. Stats
 
-Stats consume a filled `Analysis` and run **after** models, **before** `video_reader.release()`. Example:
+Stats consume a filled `Analysis` and run **after** models, **before** `video_reader.release()`.
+
+**`LegsCourt`** (enabled in production config) projects each player's `legs.image` (bbox bottom-centre) through `frame.homography.matrix` and sets `player.legs.court` → a `CourtPosition` on the **player JSON** (`court_position: {x, y}` in metres). Access: `player.legs.court.distance_to_center_m`. It does **not** write under `analysis.data["stats"]`.
 
 ```python
-class ExampleStat(Stat[TennisAnalysis]):
-    def __init__(self, config: dict | None = None) -> None:
-        super().__init__(config)
-
-    def run(self, video_reader, analysis: TennisAnalysis) -> None:
-        detected = sum(1 for f in analysis.frames if f.ball)
-        analysis.data.setdefault("stats", {})["ball_detections"] = detected
+for frame in analysis.frames:
+    for player in frame.players:
+        if player.legs.court:
+            print(frame.id, player.legs.court.distance_to_center_m)
 ```
 
-List them under `stats:` like models (FQCN + optional `config`). Production YAML keeps an example commented:
+List stats under `stats:` like models (FQCN + optional `config`):
 
 ```yaml
-# stats:
-#   - name: pipeline.stats.tennis.ExampleStat
-#     config: {}
+stats:
+  - name: pipeline.stats.tennis.LegsCourt
+    config: {}
 ```
 
 ---
@@ -482,9 +497,9 @@ models:
     config:
       device: "cuda"
       weight: "./models/TENNIS_COURT_MODEL_18_11_2026.pt"
-# stats:
-#   - name: pipeline.stats.tennis.ExampleStat
-#     config: {}
+stats:
+  - name: pipeline.stats.tennis.LegsCourt
+    config: {}
 outputs:
   path: ./outputs/tennis/stats.json
 ```
@@ -552,7 +567,7 @@ regression:
   tolerance: 0.005
 ```
 
-**Court** — `config_test_tennis_accuracy_court_detection.yaml`:
+**Court** — `config_test_tennis_accuracy_court_detection.yaml` (image NRT via `CourtDetectionEvaluator`; no `run_pipeline` / no `analysis:` key):
 
 ```yaml
 models:
@@ -720,7 +735,7 @@ frame,class_id,x0,y0,x1,y1
 
 ### Court annotator — `tools/court_annotator.py`
 
-GUI to label **14 ITF tennis court keypoints** on a still image. Schema / flip map live only in [`tools/court_schema.py`](tools/court_schema.py) (shared with train prepare/import and NRT eval). Named points + fixed edges; `v` projects the model court via OpenCV homography.
+GUI to label **14 ITF tennis court keypoints** on a still image. Schema / flip map live only in [`pipeline/objects/tennis/tennis_court_schema.py`](pipeline/objects/tennis/tennis_court_schema.py) (shared with train prepare/import and NRT eval). Named points + fixed edges; `v` projects the model court via OpenCV homography (`estimate_court_to_image`).
 
 ```bash
 python tools/court_annotator.py --image_path path/to/frame.png
@@ -808,7 +823,7 @@ After training, copy / upload the stable weights so `TennisPlayerModel` can load
 
 Code: `trains/tennis/court_detection/` (NDJSON import + optional prepare + Ultralytics pose train + MLflow).
 
-Uses the same **14** ITF keypoints / `FLIP_IDX` from `tools/court_schema.py` only (no local copies). Task is **pose** (1 class `tennis court` + 14 kpts), not plain detect.
+Uses the same **14** ITF keypoints / `FLIP_IDX` from `pipeline.objects.tennis.tennis_court_schema` only (no local copies). Task is **pose** (1 class `tennis court` + 14 kpts), not plain detect.
 
 **Primary path — Ultralytics NDJSON export**
 
@@ -882,7 +897,7 @@ There are three pytest markers (see `pytest.ini`):
 |--------|--------|-------|----------------------------------|---------|
 | `unit` | `tests/unit/` | Seconds | No | Pure logic: objects, JSON I/O, metrics, baseline compare, Hypothesis |
 | `integration` | `tests/integration/` | Seconds–tens of s | No (synthetic OpenCV video + fake model) | `VideoReader`, `run_pipeline`, evaluator flow |
-| `nrt` | `tests/nrt/` | Minutes / clip (CPU; much faster with sequential triplets) | Yes | Full pipeline on annotated clips vs committed baseline |
+| `nrt` | `tests/nrt/` | Minutes (CPU; faster with `iter_triplets` / `iter_frames`) | Yes | Ball/player video pipeline + court still-image pose vs committed baselines |
 
 ```bash
 # Fast feedback while coding
@@ -904,10 +919,14 @@ These never open a video or load TorchScript. Data is built in memory (`dict`, `
 |------|----------------|
 | `tests/unit/test_tennis_ball.py` | `TennisBall.create`, velocity, dict view |
 | `tests/unit/test_analysis_json.py` | `save_json` / `load_json` round-trip, `frame.ball` persistence |
+| `tests/unit/test_frame_empty.py` | `Frame.empty` / `TennisFrame.empty` templates |
 | `tests/unit/test_ball_metrics.py` | `match_prediction` + `compute` (TP / FP1 / FP2 / TN / FN) |
 | `tests/unit/test_ball_metrics_properties.py` | Hypothesis: counts sum to Total; metrics stay in `[0, 1]` |
 | `tests/unit/test_player_detection_metrics.py` | IoU / greedy match (TP if IoU ≥ 0.5 else FP) + mAP helpers |
 | `tests/unit/test_court_detection_metrics.py` | PCK / OKS / per-id keypoint TP-FP-FN, `parse_yolo_pose_label`, `discover_image_label_pairs` |
+| `tests/unit/test_court_yolo.py` | Shared YOLO-pose encode/decode (`tools/court_yolo.py`) |
+| `tests/unit/test_court_homography.py` | `estimate_image_to_court`, `legs` / `CourtPosition`, Stat `LegsCourt` |
+| `tests/unit/test_resolve_device.py` | `SPORTAI_DEVICE` override + CUDA→CPU fallback |
 | `tests/unit/test_baseline.py` | `build_baseline`, save/load, `compare_to_baseline` cases |
 | `tests/unit/test_run_pipeline_analysis.py` | Config `analysis:` required; FQCN loads `TennisAnalysis` |
 
@@ -920,7 +939,6 @@ OpenCV writes a tiny synthetic `.mp4` under pytest `tmp_path` (helper: `tests/he
 | File | What it locks |
 |------|----------------|
 | `tests/integration/test_video_reader.py` | Metadata, `read_frame`, `iter_frames`, `iter_triplets` equivalence |
-| `tests/unit/test_resolve_device.py` | `SPORTAI_DEVICE` override + CUDA→CPU fallback |
 | `tests/integration/test_run_pipeline_fake_model.py` | `run_pipeline(..., test=True)` writes balls + analysis dict shape |
 | `tests/integration/test_ball_tracking_evaluator_flow.py` | Pipeline → `match_prediction` → `compute` (TP/FN/TN/FP2 scenario) |
 | `tests/integration/test_player_detection_evaluator_flow.py` | Fake player model → `match_prediction` → `compute` (TP/FN/TN) |
@@ -985,7 +1003,7 @@ Per frame, predicted and GT boxes (`xyxy`) are matched greedily by IoU:
 | Prediction with no such match | FP |
 | GT box left unmatched | FN |
 
-Also reports COCO-style `mAP50` and `mAP50-95` (IoU thresholds 0.50:0.05:0.95; a pair is TP only if IoU ≥ 0.5 at the lowest threshold).
+Also reports `mAP50` / `mAP50-95` as **single-class micro-precision proxies** at IoU thresholds 0.50 and 0.50:0.05:0.95 (not full COCO AP with score sorting / PR curves). Useful for regression; do not treat them as published COCO mAP.
 
 Regression metrics compared to baseline: Accuracy, Precision, Recall, F1-Score, mAP50, mAP50-95.
 
@@ -1301,7 +1319,7 @@ No change to `run.py` for a new *tennis* model.
 
 1. Create `pipeline/stats/tennis/my_stat.py` inheriting from `Stat[TennisAnalysis]` (`__init__(self, config=None)`).
 2. Implement `run(self, video_reader, analysis: TennisAnalysis)`.
-3. Read `analysis.frames`, write into `analysis.data.setdefault("stats", {})`.
+3. Prefer writing derived fields on **frames / players** (see `LegsCourt` → `court_position`); only use a top-level bag if the KPI is global.
 4. Export it and list it under `stats:` in the config (loop already wired in `run.py`).
 
 ### Add a new sport
@@ -1324,25 +1342,21 @@ No change to `run.py` for a new *tennis* model.
 
 | Symptom | Likely cause | Fix |
 |---------|--------------|-----|
-| `RuntimeError: Attempting to deserialize object on a CUDA device...` | Config asks for `cuda` on a machine without GPU | `resolve_device` falls back to CPU; or set `SPORTAI_DEVICE=cpu` (overrides YAML in pipeline and NRT). |
-| Test shows 0% recall but no exception | Model error was swallowed | Current `run.py` re-raises after `logger.exception`. Check the traceback. |
+| Want CPU while YAML says `cuda` | Config device vs machine | Set `SPORTAI_DEVICE=cpu` (overrides YAML via `resolve_device` in all tennis models + NRT). Without CUDA, `cuda` already falls back to CPU with a warning. |
 | `FileNotFoundError` on weights in CI | Missing / wrong HF path or token | Verify `weights.filename`, repo visibility, and `HF_TOKEN`. |
 | Baseline comparison fails after switching GPU ↔ CPU | Different floating-point paths | Regenerate the baseline on the same device class as CI (`cpu`). |
-| `Results differ from the baseline` after a tiny code change | Expected (incl. `iter_triplets` / model edits) | Inspect `report.md`, then `--update-baseline` on CPU if the new behaviour is wanted. |
-| Annotator coordinates disagree with predictions | Video not 1280×720 | Convert canvas coords using the centering offset, or resize/export clips at 1280×720. |
-| NRT still slow on CPU | TrackNet on CPU is heavy even with sequential I/O | Prefer a short clip; GPU locally; CI stays on CPU for baseline stability. |
-| NRT job skipped even though `pipeline/models/**` changed | `unit` / `lint` / `coverage` / `integration` not all green | Matrix jobs must all succeed (`needs.*.result == success`) before NRT starts. |
+| `Results differ from the baseline` after a tiny code change | Expected (model / post-process / I/O edits) | Inspect `report.md`, then `--update-baseline` on CPU if the new behaviour is wanted. |
+| Annotator coordinates disagree with predictions | Video not 1280×720 (ball annotator canvas) | Convert canvas coords using the centering offset, or resize/export clips at 1280×720. |
+| NRT still slow on CPU | TrackNet on CPU is heavy (even with `iter_triplets` / `iter_frames`) | Prefer a short clip; GPU locally; CI stays on CPU for baseline stability. |
+| NRT job skipped even though model paths changed | Upstream jobs red, or path filter | `unit` / `integration` / `coverage` / `lint` must all be green. Path filter does **not** include `pipeline/objects/**`. |
+| `player.legs.court` is `None` | No `homography.matrix`, or `LegsCourt` not in `stats:` | Need ≥4 confident court kpts for H; enable `pipeline.stats.tennis.LegsCourt` in YAML. |
 | `No matching distribution for pre-commit==4.7.0` on 3.10 | Pins require Python ≥ 3.11 | Use 3.11+ locally; CI matrix is **3.11 / 3.12** only. |
-| `Coverage failure: total … less than fail-under=60` | Real drop, or wrong `--cov` path | Use `--cov=tests.baseline` (module). Omits are in `pyproject.toml`. Raise coverage or fix tests. |
-| Codecov badge shows `unknown` | No successful upload, wrong repo URL, or missing token | Run job `coverage` on GitHub; secret `CODECOV_TOKEN`; badge must point to `rnouteau/SportAI`. |
+| `Coverage failure: total … less than fail-under=60` | Real drop, or wrong `--cov` path | Use `--cov=tests.baseline` (module). Omits are in `pyproject.toml`. |
 | `from tests...` import fails | Another installed package named `tests` | Run via `python -m pytest` from the repo root (`pytest.ini` sets `pythonpath = .`). |
-| Cannot commit the baseline JSON | `.gitignore` has `*.json` | Exception already present: `!tests/baselines/**/*.json`. |
-| pre-commit / CI `lint` fails on mypy `[override]` | Subclass narrowed `Analysis` without generics | Inherit `Model[TennisAnalysis]` / `Stat[TennisAnalysis]` (see §3). |
 | pre-commit fails then “files were modified” | Auto-fix hooks (whitespace, ruff format) | Re-stage and commit again; or run `pre-commit run --all-files` once. |
-| ruff `B017` on `pytest.raises(Exception)` | Blind exception catch | Assert a concrete type, or only check that `release()` does not raise. |
-| Wiki Home not updated after NRT on `main` | Missing `WIKI_TOKEN` or wiki not bootstrapped | Enable Wikis, create a first page, add the PAT secret. |
-| `RuntimeError: operator torchvision::nms does not exist` | `torch` CPU wheel + mismatched `torchvision` from PyPI | Install both from the same index: `pip install torch==2.9.0 torchvision==0.24.0 --index-url https://download.pytorch.org/whl/cpu` (see §9). |
-| Ball NRT fails with small metric drift (~0.005–0.01) | CPU / Ultralytics nondeterminism | Inspect `report.md`; ball suite tolerance is `0.01`. Regenerate baseline on CPU only for intentional model/post-process changes. |
+| mypy `[override]` when adding a model/stat | Subclass narrowed `Analysis` without generics | Inherit `Model[TennisAnalysis]` / `Stat[TennisAnalysis]` (see §3). |
+| `RuntimeError: operator torchvision::nms does not exist` | `torch` CPU wheel + mismatched `torchvision` from PyPI | Install both from the same index (see §9). |
+| Ball NRT fails with small metric drift (~0.005–0.01) | CPU nondeterminism | Inspect `report.md`; ball suite tolerance is `0.01`. Regenerate baseline on CPU only for intentional changes. |
 
 ---
 

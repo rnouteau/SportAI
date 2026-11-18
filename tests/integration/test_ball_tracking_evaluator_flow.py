@@ -30,7 +30,10 @@ class FakeTennisBallModel(Model[TennisAnalysis]):
         for frame in analysis.frames:
             assert frame.id is not None
             if frame.id % 2 == 0:
-                frame.ball = TennisBall.create(position=(100.0, 100.0), confidence=0.95)
+                ball = TennisBall.create()
+                ball.position = (100.0, 100.0)
+                ball.confidence = 0.95
+                frame.ball = ball
             else:
                 frame.ball = None
 

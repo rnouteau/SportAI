@@ -61,7 +61,7 @@ def test_save_and_load_round_trip(tmp_path) -> None:
 @pytest.mark.unit
 def test_mutation_is_persisted_after_reload(tmp_path) -> None:
     analysis = make_analysis()
-    analysis.frames[0].ball = TennisBall.create([0.5, 100], 0.7)
+    analysis.frames[0].ball = TennisBall.create(position=[0.5, 100], confidence=0.7)
     path = tmp_path / "subdir" / "analysis.json"
     analysis.save_json(path)
 

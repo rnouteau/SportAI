@@ -52,5 +52,9 @@ class TennisPlayerModel(Model[TennisAnalysis]):
                 xyxy = torch.as_tensor(boxes.xyxy).detach().cpu().numpy()
                 top = confs.argsort()[::-1][:2]
                 analysis.frames[frame_id].players = [
-                    TennisPlayerAtFrame.create(xyxy[i].tolist(), float(confs[i])) for i in top
+                    TennisPlayerAtFrame.create(
+                        position=xyxy[i].tolist(),
+                        confidence=float(confs[i]),
+                    )
+                    for i in top
                 ]

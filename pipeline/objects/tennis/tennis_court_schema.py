@@ -1,4 +1,4 @@
-"""Tennis court keypoint schema (14 ITF keypoints) for annotation and homography overlay.
+"""Tennis court keypoint schema (14 ITF keypoints) for annotation and homography.
 
 Order matches the Ultralytics Tennis Court Keypoint Detection dataset:
 far baseline → far service → near service → near baseline (left→right within each row).
@@ -79,9 +79,7 @@ EDGES: tuple[tuple[int, int], ...] = (
 )
 
 # Extra model-only polylines for overlay (net across singles width; no NET_C keypoint).
-OVERLAY_POLYLINES_M: tuple[tuple[tuple[float, float], ...], ...] = (
-    ((-W_S, 0.0), (W_S, 0.0)),
-)
+OVERLAY_POLYLINES_M: tuple[tuple[tuple[float, float], ...], ...] = (((-W_S, 0.0), (W_S, 0.0)),)
 
 
 def model_xy(point_id: int) -> tuple[float, float]:

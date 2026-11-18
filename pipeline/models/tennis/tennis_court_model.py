@@ -5,6 +5,7 @@ from ultralytics.engine.results import Results
 
 from pipeline.device import resolve_device
 from pipeline.models.model import Model
+from pipeline.objects.tennis.court_homography import estimate_image_to_court
 from pipeline.objects.tennis.tennis_analysis import TennisAnalysis
 from pipeline.objects.tennis.tennis_homography import TennisHomography
 from pipeline.video_reader import VideoReader
@@ -59,4 +60,8 @@ class TennisCourtModel(Model[TennisAnalysis]):
                 best = int(conf.mean(dim=1).argmax().item())
                 pts = xy[best].tolist()  # list[[x, y], ...]
                 confs = conf[best].tolist()  # list[float]
-                analysis.frames[frame_id].homography = TennisHomography.create(pts, confs)
+                h_mat = estimate_image_to_court(pts, confs)
+                homo = TennisHomography.create(keypoints=pts, confidences=confs)
+                if h_mat is not None:
+                    homo.matrix = h_mat.tolist()
+                analysis.frames[frame_id].homography = homo
