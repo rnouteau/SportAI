@@ -25,7 +25,7 @@ from pipeline.objects.tennis.tennis_court_schema import (  # noqa: E402
     N_POINTS,
     POINT_BY_ID,
     POINTS,
-    TENNIS_COURT,
+    TennisCourtSchema,
     model_xy,
     overlay_segments_m,
 )
@@ -260,7 +260,7 @@ class CourtAnnotatorApplication:
 
         pids = sorted(self.annotations)
         image_pts = [self.annotations[pid] for pid in pids]
-        h_mat = TENNIS_COURT.estimate_court_to_image(image_pts, pids)
+        h_mat = TennisCourtSchema().estimate_court_to_image(image_pts, pids)
         if h_mat is None:
             logger.error("Homography estimation failed")
             return

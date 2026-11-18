@@ -77,7 +77,8 @@ SportAI/
 │   └── stats/
 │       ├── stat.py                   # Abstract Stat[AnalysisT] base
 │       └── tennis/
-│           └── example_stat.py       # (LegsCourt stat comes in a later step)
+│           ├── tennis_example_stat.py
+│           └── tennis_legs_court_stat.py  # player.legs.court via H + analysis.court_schema
 
 
 ├── tests/
@@ -230,11 +231,11 @@ class Stat(ABC, Generic[AnalysisT]):
     def run(self, video_reader: VideoReader, analysis: AnalysisT) -> None: ...
 
 
-class ExampleStat(Stat[TennisAnalysis]):
+class TennisExampleStat(Stat[TennisAnalysis]):
     def run(self, video_reader: VideoReader, analysis: TennisAnalysis) -> None: ...
 ```
 
-Stats read filled frames (`for frame in analysis.frames`) and write derived values (into `analysis.data["stats"]` or logs). They do not run neural nets.
+Stats read filled frames and write derived fields on players/frames (e.g. `player.legs.court`). They do not run neural nets.
 
 ### Analysis
 
@@ -245,9 +246,10 @@ class Analysis(ABC, Generic[FrameT]):
     frame_class: type[FrameT]
     frames: list[FrameT]
     data: dict  # the JSON document
+    court_schema: CourtSchema | None  # set on the instance
 ```
 
-`TennisAnalysis(Analysis[TennisFrame])` sets `frame_class = TennisFrame`, so every frame is a `TennisFrame` with `.ball`, `.players`, and optional `.homography`. Empty frames come from `TennisFrame.empty(id)` (base `Frame.empty` is only `{"id": …}`).
+`TennisAnalysis` sets `frame_class = TennisFrame` and `self.court_schema = TennisCourtSchema()` in `__init__`. Empty frames come from `TennisFrame.empty(id)`.
 
 ---
 
@@ -326,7 +328,7 @@ data = run_pipeline(
         {
           "position": [120.0, 200.0, 340.0, 560.0],
           "confidence": 0.91,
-          "court_position": { "x": 1.2, "y": -4.5 }
+          "legs": { "court": { "x": 1.2, "y": -4.5 } }
         }
       ],
       "ball": {
@@ -353,7 +355,7 @@ data = run_pipeline(
 | `frames[i]` | `TennisFrame` | `frame.id`, `frame.ball`, `frame.players`, `frame.homography` |
 | `frames[i].ball` | `TennisBall` | `frame.ball.position`, `frame.ball.confidence` |
 | `frames[i].players[j]` | `TennisPlayerAtFrame` | `player.bbox`, `player.confidence`, `player.legs` |
-| `frames[i].players[j].court_position` | `CourtPosition` via `player.legs.court` | `x`, `y` (m), `distance_to_center_m` |
+| `frames[i].players[j].legs.court` | `CourtPosition` | `x`, `y` (m), `.distance` (metres to net centre) |
 | `frames[i].homography` | `TennisHomography` | `keypoints`, `confidences`, `matrix` |
 
 Each class keeps a reference to its dict (`self.data`). Properties read/write that dict. There is no separate serialization step.
@@ -448,7 +450,7 @@ File: `pipeline/models/tennis/tennis_court_model.py`
 1. Walk the video once via `video_reader.iter_frames()`.
 2. `YOLO.predict(..., classes=[0], stream=True, device=self.device)` (class `tennis court`).
 3. Keep the best instance by mean keypoint confidence; read `keypoints.xy` (14×2).
-4. Estimate `H` via `TENNIS_COURT.estimate_homography` ; set `homo.matrix` on a `TennisHomography`.
+4. Estimate `H` via `analysis.court_schema.estimate_homography` ; set `homo.matrix` on a `TennisHomography`.
 
 NRT court accuracy uses **still images + YOLO-pose labels** via `CourtDetectionEvaluator` (not `run_pipeline` on video). Pipeline court inference on video is what fills `frame.homography` in production runs.
 
@@ -458,20 +460,20 @@ NRT court accuracy uses **still images + YOLO-pose labels** via `CourtDetectionE
 
 Stats consume a filled `Analysis` and run **after** models, **before** `video_reader.release()`.
 
-**`LegsCourt`** (enabled in production config) projects each player's `legs.image` (bbox bottom-centre) through `frame.homography.matrix` and sets `player.legs.court` → a `CourtPosition` on the **player JSON** (`court_position: {x, y}` in metres). Access: `player.legs.court.distance_to_center_m`. It does **not** write under `analysis.data["stats"]`.
+**`TennisLegsCourtStat`** (enabled in production config) projects each player's `legs.image` (bbox bottom-centre) through `frame.homography.matrix` using `analysis.court_schema`, then sets `player.legs.court` → `CourtPosition` persisted as `legs.court: {x, y}` in metres. Access: `player.legs.court.distance`.
 
 ```python
 for frame in analysis.frames:
     for player in frame.players:
         if player.legs.court:
-            print(frame.id, player.legs.court.distance_to_center_m)
+            print(frame.id, player.legs.court.distance)
 ```
 
 List stats under `stats:` like models (FQCN + optional `config`):
 
 ```yaml
 stats:
-  - name: pipeline.stats.tennis.LegsCourt
+  - name: pipeline.stats.tennis.TennisLegsCourtStat
     config: {}
 ```
 
@@ -498,7 +500,7 @@ models:
       device: "cuda"
       weight: "./models/TENNIS_COURT_MODEL_18_11_2026.pt"
 stats:
-  - name: pipeline.stats.tennis.LegsCourt
+  - name: pipeline.stats.tennis.TennisLegsCourtStat
     config: {}
 outputs:
   path: ./outputs/tennis/stats.json
@@ -735,7 +737,7 @@ frame,class_id,x0,y0,x1,y1
 
 ### Court annotator — `tools/court_annotator.py`
 
-GUI to label **14 ITF tennis court keypoints** on a still image. Schema / flip map live only in [`pipeline/objects/tennis/tennis_court_schema.py`](pipeline/objects/tennis/tennis_court_schema.py) (shared with train prepare/import and NRT eval). Named points + fixed edges; `v` projects via `TENNIS_COURT.estimate_court_to_image`.
+GUI to label **14 ITF tennis court keypoints** on a still image. Schema / flip map live only in [`pipeline/objects/tennis/tennis_court_schema.py`](pipeline/objects/tennis/tennis_court_schema.py) (shared with train prepare/import and NRT eval). Named points + fixed edges; `v` projects via `TennisCourtSchema().estimate_court_to_image`.
 
 ```bash
 python tools/court_annotator.py --image_path path/to/frame.png
@@ -925,7 +927,7 @@ These never open a video or load TorchScript. Data is built in memory (`dict`, `
 | `tests/unit/test_player_detection_metrics.py` | IoU / greedy match (TP if IoU ≥ 0.5 else FP) + mAP helpers |
 | `tests/unit/test_court_detection_metrics.py` | PCK / OKS / per-id keypoint TP-FP-FN, `parse_yolo_pose_label`, `discover_image_label_pairs` |
 | `tests/unit/test_court_yolo.py` | Shared YOLO-pose encode/decode (`tools/court_yolo.py`) |
-| `tests/unit/test_court_homography.py` | `TennisCourtSchema` H / `image_to_court` / `.distance` |
+| `tests/unit/test_court_homography.py` | `analysis.court_schema`, `legs.court`, `CourtPosition.from_image` / `.distance` |
 | `tests/unit/test_resolve_device.py` | `SPORTAI_DEVICE` override + CUDA→CPU fallback |
 | `tests/unit/test_baseline.py` | `build_baseline`, save/load, `compare_to_baseline` cases |
 | `tests/unit/test_run_pipeline_analysis.py` | Config `analysis:` required; FQCN loads `TennisAnalysis` |
@@ -1319,7 +1321,7 @@ No change to `run.py` for a new *tennis* model.
 
 1. Create `pipeline/stats/tennis/my_stat.py` inheriting from `Stat[TennisAnalysis]` (`__init__(self, config=None)`).
 2. Implement `run(self, video_reader, analysis: TennisAnalysis)`.
-3. Prefer writing derived fields on **frames / players** (see `LegsCourt` → `court_position`); only use a top-level bag if the KPI is global.
+3. Prefer writing derived fields on **frames / players** (see `TennisLegsCourtStat` → `player.legs.court`); only use a top-level bag if the KPI is global.
 4. Export it and list it under `stats:` in the config (loop already wired in `run.py`).
 
 ### Add a new sport
@@ -1349,7 +1351,7 @@ No change to `run.py` for a new *tennis* model.
 | Annotator coordinates disagree with predictions | Video not 1280×720 (ball annotator canvas) | Convert canvas coords using the centering offset, or resize/export clips at 1280×720. |
 | NRT still slow on CPU | TrackNet on CPU is heavy (even with `iter_triplets` / `iter_frames`) | Prefer a short clip; GPU locally; CI stays on CPU for baseline stability. |
 | NRT job skipped even though model paths changed | Upstream jobs red, or path filter | `unit` / `integration` / `coverage` / `lint` must all be green. Path filter does **not** include `pipeline/objects/**`. |
-| `player.legs.court` is `None` | No `homography.matrix`, or `LegsCourt` not in `stats:` | Need ≥4 confident court kpts for H; enable `pipeline.stats.tennis.LegsCourt` in YAML. |
+| `player.legs.court` is `None` | No `homography.matrix`, or stat missing | Need ≥4 confident court kpts for H; enable `pipeline.stats.tennis.TennisLegsCourtStat` in YAML. |
 | `No matching distribution for pre-commit==4.7.0` on 3.10 | Pins require Python ≥ 3.11 | Use 3.11+ locally; CI matrix is **3.11 / 3.12** only. |
 | `Coverage failure: total … less than fail-under=60` | Real drop, or wrong `--cov` path | Use `--cov=tests.baseline` (module). Omits are in `pyproject.toml`. |
 | `from tests...` import fails | Another installed package named `tests` | Run via `python -m pytest` from the repo root (`pytest.ini` sets `pythonpath = .`). |

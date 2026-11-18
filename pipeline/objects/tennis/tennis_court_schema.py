@@ -95,21 +95,19 @@ class TennisCourtSchema(CourtSchema):
         return segments
 
 
-TENNIS_COURT = TennisCourtSchema()
-
-# Module aliases for train / tools / eval (single shared instance).
+# Module aliases for train / tools / eval (no singleton).
 POINTS = TennisCourtSchema.POINTS
 POINT_BY_ID = TennisCourtSchema.POINT_BY_ID
 POINT_BY_NAME = TennisCourtSchema.POINT_BY_NAME
-N_POINTS = TENNIS_COURT.n_points
+N_POINTS = len(POINTS)
 FLIP_IDX = TennisCourtSchema.FLIP_IDX
 EDGES = TennisCourtSchema.EDGES
 OVERLAY_POLYLINES_M = TennisCourtSchema.OVERLAY_POLYLINES_M
 
 
 def model_xy(point_id: int) -> tuple[float, float]:
-    return TENNIS_COURT.model_xy(point_id)
+    return TennisCourtSchema().model_xy(point_id)
 
 
 def overlay_segments_m() -> list[tuple[tuple[float, float], tuple[float, float]]]:
-    return TENNIS_COURT.overlay_segments_m()
+    return TennisCourtSchema().overlay_segments_m()

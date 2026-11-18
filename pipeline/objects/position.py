@@ -1,7 +1,12 @@
 from __future__ import annotations
 
 import math
-from typing import Self
+from typing import TYPE_CHECKING, Self
+
+import numpy as np
+
+if TYPE_CHECKING:
+    from pipeline.objects.court_schema import CourtSchema
 
 
 class CourtPosition:
@@ -13,6 +18,19 @@ class CourtPosition:
     @classmethod
     def create(cls, **fields: object) -> Self:
         return cls(dict(fields))
+
+    @classmethod
+    def from_image(
+        cls,
+        image_xy: tuple[float, float] | list[float],
+        matrix: np.ndarray | list[list[float]],
+        schema: CourtSchema,
+    ) -> Self:
+        """Project image pixels → court metres via schema.image_to_court."""
+        h_mat = np.asarray(matrix, dtype=np.float64)
+        pt: tuple[float, float] = (float(image_xy[0]), float(image_xy[1]))
+        court_xy = schema.image_to_court(h_mat, [pt])[0]
+        return cls.create(x=float(court_xy[0]), y=float(court_xy[1]))
 
     @property
     def x(self) -> float | None:
@@ -45,7 +63,7 @@ class CourtPosition:
 
 
 class ImagePosition:
-    """Pixel position (not JSON-backed; computed views like legs)."""
+    """Pixel position (not JSON-backed; computed views like legs.image)."""
 
     def __init__(self, x: float, y: float) -> None:
         self._x = float(x)

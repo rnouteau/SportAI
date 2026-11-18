@@ -3,6 +3,7 @@ from abc import ABC
 from pathlib import Path
 from typing import Generic, TypeVar
 
+from pipeline.objects.court_schema import CourtSchema
 from pipeline.objects.frame import Frame
 from pipeline.video_reader import VideoReader
 
@@ -15,6 +16,7 @@ class Analysis(ABC, Generic[FrameT]):
     def __init__(self, data: dict) -> None:
         self.data = data
         self.frames: list[FrameT] = [self.frame_class(frame_data) for frame_data in data["frames"]]
+        self.court_schema: CourtSchema | None = None
 
     @classmethod
     def from_video(cls, video_reader: VideoReader, sport: str) -> "Analysis[FrameT]":

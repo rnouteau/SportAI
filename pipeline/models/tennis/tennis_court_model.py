@@ -6,7 +6,6 @@ from ultralytics.engine.results import Results
 from pipeline.device import resolve_device
 from pipeline.models.model import Model
 from pipeline.objects.tennis.tennis_analysis import TennisAnalysis
-from pipeline.objects.tennis.tennis_court_schema import TENNIS_COURT
 from pipeline.objects.tennis.tennis_homography import TennisHomography
 from pipeline.video_reader import VideoReader
 
@@ -60,7 +59,11 @@ class TennisCourtModel(Model[TennisAnalysis]):
                 best = int(conf.mean(dim=1).argmax().item())
                 pts = xy[best].tolist()  # list[[x, y], ...]
                 confs = conf[best].tolist()  # list[float]
-                h_mat = TENNIS_COURT.estimate_homography(pts, confs)
+                schema = analysis.court_schema
+                if schema is None:
+                    logger.error("No court_schema on analysis, cannot estimate homography")
+                    continue
+                h_mat = schema.estimate_homography(pts, confs)
                 homo = TennisHomography.create(keypoints=pts, confidences=confs)
                 if h_mat is not None:
                     homo.matrix = h_mat.tolist()

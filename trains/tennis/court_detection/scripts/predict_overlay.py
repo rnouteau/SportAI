@@ -18,7 +18,7 @@ if str(REPO_ROOT) not in sys.path:
 from pipeline.objects.tennis.tennis_court_schema import (  # noqa: E402
     N_POINTS,
     POINT_BY_ID,
-    TENNIS_COURT,
+    TennisCourtSchema,
     overlay_segments_m,
 )
 
@@ -73,7 +73,7 @@ def draw_homography_overlay(image: np.ndarray, points: dict[int, tuple[float, fl
     else:
         pids = sorted(points)
         image_pts = [points[pid] for pid in pids]
-        h_mat = TENNIS_COURT.estimate_court_to_image(image_pts, pids)
+        h_mat = TennisCourtSchema().estimate_court_to_image(image_pts, pids)
         if h_mat is not None:
             logger.info("Homography OK — {} points", len(pids))
             for (x0, y0), (x1, y1) in overlay_segments_m():

@@ -5,13 +5,13 @@ from pipeline.stats.stat import Stat
 from pipeline.video_reader import VideoReader
 
 
-class ExampleStat(Stat[TennisAnalysis]):
+class TennisExampleStat(Stat[TennisAnalysis]):
     def __init__(self, config: dict | None = None) -> None:
         super().__init__(config)
-        logger.info("ExampleStat initialized")
+        logger.info("TennisExampleStat initialized")
 
     def run(self, video_reader: VideoReader, analysis: TennisAnalysis) -> None:
-        logger.info("Running ExampleStat")
+        logger.info("Running TennisExampleStat")
         detected = sum(1 for frame in analysis.frames if frame.ball)
         analysis.data.setdefault("stats", {})["ball_detections"] = detected
         for frame in analysis.frames:

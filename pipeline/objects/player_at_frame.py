@@ -1,6 +1,6 @@
 from typing import Self
 
-from pipeline.objects.position import ImagePosition
+from pipeline.objects.legs import Legs
 
 
 class PlayerAtFrame:
@@ -9,7 +9,7 @@ class PlayerAtFrame:
 
     @classmethod
     def create(cls, **fields: object) -> Self:
-        """Build from free kwargs; new fields use setters (e.g. legs.court later)."""
+        """Build from free kwargs; new fields use setters (e.g. legs.court)."""
         return cls(dict(fields))
 
     @property
@@ -36,9 +36,6 @@ class PlayerAtFrame:
             self.data["confidence"] = float(value)
 
     @property
-    def legs(self) -> ImagePosition | None:
-        """Bottom-centre of bbox (computed; not stored in JSON)."""
-        if self.bbox is None or len(self.bbox) < 4:
-            return None
-        x0, _y0, x1, y1 = (float(v) for v in self.bbox[:4])
-        return ImagePosition((x0 + x1) / 2.0, y1)
+    def legs(self) -> Legs:
+        """Legs view: image computed from bbox; court persisted under data['legs']['court']."""
+        return Legs(self.data, self.bbox)

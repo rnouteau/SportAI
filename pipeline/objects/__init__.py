@@ -2,6 +2,7 @@ from .analysis import Analysis
 from .ball import Ball
 from .court_schema import CourtSchema
 from .frame import Frame
+from .legs import Legs
 from .player_at_frame import PlayerAtFrame
 from .position import CourtPosition, ImagePosition
 
@@ -12,5 +13,6 @@ __all__ = [
     "CourtSchema",
     "Frame",
     "ImagePosition",
+    "Legs",
     "PlayerAtFrame",
 ]
