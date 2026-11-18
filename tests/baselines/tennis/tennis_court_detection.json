@@ -1,6 +1,6 @@
 {
   "context": {
-    "device": "cuda",
+    "device": "cpu",
     "dataset_revision": "v3",
     "weights": "TENNIS_COURT_MODEL_18_11_2026.pt",
     "match_threshold": 0.05,
@@ -10,7 +10,7 @@
     "-0M6ixK7aIU_1150_png.rf.b3270812b04e81971c6a8a12bfb8bbcf.jpg": {
       "PCK@0.05": 1.0,
       "PCK@0.1": 1.0,
-      "OKS": 0.9976,
+      "OKS": 0.9975,
       "Accuracy": 1.0,
       "Precision": 1.0,
       "Recall": 1.0,
@@ -73,7 +73,7 @@
     "7hjEYRnDFVY_1800_png.rf.0a80660751f0f6225f644abd9c1fce51.jpg": {
       "PCK@0.05": 1.0,
       "PCK@0.1": 1.0,
-      "OKS": 0.9069,
+      "OKS": 0.9068,
       "Accuracy": 0.9286,
       "Precision": 0.9286,
       "Recall": 1.0,
@@ -100,7 +100,7 @@
     "7kIDkiQQo9Q_1150_png.rf.1e18075ab73caf18445f918f90f39916.jpg": {
       "PCK@0.05": 1.0,
       "PCK@0.1": 1.0,
-      "OKS": 0.9751,
+      "OKS": 0.975,
       "Accuracy": 1.0,
       "Precision": 1.0,
       "Recall": 1.0,
@@ -118,7 +118,7 @@
     "9BxaDnr8fX0_1350_png.rf.dbe7c5195146b84e760f61eff4f183c3.jpg": {
       "PCK@0.05": 1.0,
       "PCK@0.1": 1.0,
-      "OKS": 0.989,
+      "OKS": 0.9889,
       "Accuracy": 1.0,
       "Precision": 1.0,
       "Recall": 1.0,
@@ -145,7 +145,7 @@
     "_22eJvtP_lc_1900_png.rf.8528c191551635912178dfddb39f1543.jpg": {
       "PCK@0.05": 1.0,
       "PCK@0.1": 1.0,
-      "OKS": 0.9863,
+      "OKS": 0.9862,
       "Accuracy": 1.0,
       "Precision": 1.0,
       "Recall": 1.0,
@@ -163,7 +163,7 @@
     "ANPF-QPUe70_1500_png.rf.0bd449213617988baa731740083c053d.jpg": {
       "PCK@0.05": 0.6429,
       "PCK@0.1": 1.0,
-      "OKS": 0.666,
+      "OKS": 0.6662,
       "Accuracy": 0.4737,
       "Precision": 0.6429,
       "Recall": 0.6429,
@@ -190,7 +190,7 @@
     "chVcFbytWqE_250_png.rf.34b5e5b614fe1393efa03360a3dba45f.jpg": {
       "PCK@0.05": 1.0,
       "PCK@0.1": 1.0,
-      "OKS": 0.9557,
+      "OKS": 0.9556,
       "Accuracy": 1.0,
       "Precision": 1.0,
       "Recall": 1.0,
@@ -208,7 +208,7 @@
     "G749JgIp_A0_1750_png.rf.56c912232e502e9b93fb8993267d78c1.jpg": {
       "PCK@0.05": 1.0,
       "PCK@0.1": 1.0,
-      "OKS": 0.9409,
+      "OKS": 0.9408,
       "Accuracy": 1.0,
       "Precision": 1.0,
       "Recall": 1.0,
@@ -226,7 +226,7 @@
     "g7BL0DU36Sg_300_png.rf.27d21906f46658a12e240489fb4458e1.jpg": {
       "PCK@0.05": 1.0,
       "PCK@0.1": 1.0,
-      "OKS": 0.9721,
+      "OKS": 0.972,
       "Accuracy": 1.0,
       "Precision": 1.0,
       "Recall": 1.0,
@@ -262,7 +262,7 @@
     "j5msizaOo1s_1600_png.rf.2465a2edfa7baf2cc95fb15808e120fc.jpg": {
       "PCK@0.05": 1.0,
       "PCK@0.1": 1.0,
-      "OKS": 0.9883,
+      "OKS": 0.9882,
       "Accuracy": 1.0,
       "Precision": 1.0,
       "Recall": 1.0,
@@ -307,7 +307,7 @@
     "Ox-_53Qq3-s_950_png.rf.0b46643e7c0a22c454244bd16ae61a50.jpg": {
       "PCK@0.05": 0.9286,
       "PCK@0.1": 1.0,
-      "OKS": 0.8358,
+      "OKS": 0.8357,
       "Accuracy": 0.8667,
       "Precision": 0.9286,
       "Recall": 0.9286,
@@ -334,7 +334,7 @@
     "pE_75IXh0O8_50_png.rf.955139b5db0969c68ca5ae4d85414aff.jpg": {
       "PCK@0.05": 1.0,
       "PCK@0.1": 1.0,
-      "OKS": 0.8325,
+      "OKS": 0.8323,
       "Accuracy": 1.0,
       "Precision": 1.0,
       "Recall": 1.0,
@@ -343,7 +343,7 @@
     "pE_75IXh0O8_600_png.rf.0e34d05abb34289cc64a34eca581e546.jpg": {
       "PCK@0.05": 1.0,
       "PCK@0.1": 1.0,
-      "OKS": 0.9678,
+      "OKS": 0.9677,
       "Accuracy": 1.0,
       "Precision": 1.0,
       "Recall": 1.0,
@@ -397,7 +397,7 @@
     "T9S8fQHtV7E_50_png.rf.7c5862f68255a5f192755943b0aa86f9.jpg": {
       "PCK@0.05": 1.0,
       "PCK@0.1": 1.0,
-      "OKS": 0.9826,
+      "OKS": 0.9825,
       "Accuracy": 1.0,
       "Precision": 1.0,
       "Recall": 1.0,
@@ -433,7 +433,7 @@
     "WbM-v_vc4eQ_2100_png.rf.75634da0289459f311f0903325228430.jpg": {
       "PCK@0.05": 1.0,
       "PCK@0.1": 1.0,
-      "OKS": 0.9855,
+      "OKS": 0.9854,
       "Accuracy": 1.0,
       "Precision": 1.0,
       "Recall": 1.0,
@@ -487,7 +487,7 @@
     "TOTAL": {
       "PCK@0.05": 0.973,
       "PCK@0.1": 0.9811,
-      "OKS": 0.9433,
+      "OKS": 0.9432,
       "Accuracy": 0.9637,
       "Precision": 0.9835,
       "Recall": 0.9795,
