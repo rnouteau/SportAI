@@ -4,7 +4,7 @@
 
 SportAI is a sports video analysis pipeline. It runs detection / tracking models on a video, stores every prediction in a typed JSON document (`Analysis`), then computes statistics and non-regression metrics on top of that document.
 
-The first implemented sport is **tennis**, with a TrackNet TorchScript **ball** detector and a YOLO **player** detector. The architecture is designed so that new sports, models and stats can be added without rewriting the orchestrator.
+The first implemented sport is **tennis**, with a TrackNet TorchScript **ball** detector, a YOLO **player** detector, and a YOLO11 pose **court** keypoint model (14 ITF points → frame homography). The architecture is designed so that new sports, models and stats can be added without rewriting the orchestrator.
 
 ---
 
@@ -37,8 +37,8 @@ Given a tennis video and a YAML config, SportAI:
 
 1. Opens the video with OpenCV (`VideoReader`).
 2. Builds an empty `TennisAnalysis` object (one frame entry per video frame).
-3. Instantiates every model listed in the config (e.g. `TennisBallModel`, `TennisPlayerModel`).
-4. Runs each model. Models write predictions into the analysis frames (`frame.ball`, `frame.players`).
+3. Instantiates every model listed in the config (e.g. `TennisBallModel`, `TennisPlayerModel`, `TennisCourtModel`).
+4. Runs each model. Models write predictions into the analysis frames (`frame.ball`, `frame.players`, `frame.homography`).
 5. Optionally runs stats on the filled analysis.
 6. Saves the full analysis as a JSON file, or returns the dict when used from tests.
 
@@ -59,15 +59,17 @@ SportAI/
 │   │   ├── model.py                  # Abstract Model[AnalysisT] base
 │   │   └── tennis/
 │   │       ├── tennis_ball_model.py    # TrackNet TorchScript ball detector
-│   │       └── tennis_player_model.py  # YOLO player detector
+│   │       ├── tennis_player_model.py  # YOLO player detector
+│   │       └── tennis_court_model.py   # YOLO11 pose court (14 kpts → homography)
 │   ├── objects/                      # Typed views over the analysis JSON
 │   │   ├── analysis.py               # Analysis[FrameT] base
-│   │   ├── frame.py / ball.py / player_at_frame.py
+│   │   ├── frame.py / ball.py / player_at_frame.py / homography.py
 │   │   └── tennis/
 │   │       ├── tennis_analysis.py
 │   │       ├── tennis_frame.py
 │   │       ├── tennis_ball.py
-│   │       └── tennis_player_at_frame.py
+│   │       ├── tennis_player_at_frame.py
+│   │       └── tennis_homography.py
 │   └── stats/
 │       ├── stat.py                   # Abstract Stat[AnalysisT] base
 │       └── tennis/
@@ -78,19 +80,23 @@ SportAI/
 │   ├── conftest.py                   # pytest --update-baseline
 │   ├── helpers.py                    # Shared test helpers (e.g. make_synthetic_video)
 │   ├── evaluation/                   # Shared evaluators (unit + integration + NRT)
-│   │   ├── ball_detection_evaluation.py    # BallTrackingEvaluator
-│   │   └── player_detection_evaluation.py  # PlayerDetectionEvaluator
+│   │   ├── ball_detection_evaluation.py
+│   │   ├── player_detection_evaluation.py
+│   │   └── court_detection_evaluation.py
 │   ├── unit/                         # Fast pure-logic tests (@pytest.mark.unit)
 │   │   ├── test_tennis_ball.py
 │   │   ├── test_analysis_json.py
 │   │   ├── test_ball_metrics.py
-│   │   ├── test_ball_metrics_properties.py  # Hypothesis invariants
+│   │   ├── test_ball_metrics_properties.py
 │   │   ├── test_player_detection_metrics.py
+│   │   ├── test_court_detection_metrics.py
 │   │   └── test_baseline.py
 │   ├── integration/                  # Medium tests (@pytest.mark.integration)
-│   │   ├── test_video_reader.py      # Synthetic OpenCV video + VideoReader
+│   │   ├── test_video_reader.py
 │   │   ├── test_run_pipeline_fake_model.py
-│   │   └── test_ball_tracking_evaluator_flow.py
+│   │   ├── test_ball_tracking_evaluator_flow.py
+│   │   ├── test_player_detection_evaluator_flow.py
+│   │   └── test_court_detection_evaluator_flow.py
 │   ├── baselines/tennis/
 │   │   ├── tennis_ball_detection.json
 │   │   ├── tennis_player_detection.json
@@ -103,9 +109,9 @@ SportAI/
 │       ├── test_tennis_accuracy_ball_detection.py
 │       ├── test_tennis_accuracy_players_detection.py
 │       └── test_tennis_accuracy_court_detection.py
-├── models/                           # Local weights (gitignored root dir)
-│   ├── based_models/                 # Pretrained checkpoints (e.g. yolo11s.pt)
-│   └── trained_models/               # Fine-tuned weights (Ultralytics runs + stable .pt)
+├── models/                           # Local pipeline / annotator weights (gitignored)
+│   ├── based_models/                 # e.g. yolo11s.pt for player annotator pre-label
+│   └── trained_models/               # Optional stable copies for pipeline `weight:` paths
 ├── tools/                            # Manual annotation / video helpers
 │   ├── ball_anotator.py              # Click ball positions on frames
 │   ├── player_annotator.py           # Draw player bboxes (+ YOLO pre-annotate)
@@ -114,9 +120,8 @@ SportAI/
 │   └── video_cuter.py                # Cut clips / export a still frame
 ├── trains/                           # Training code (not imported by pipeline)
 │   └── tennis/
-│       ├── ball_detection/           # TrackNet training + TorchScript export
-│       ├── player_detection/         # YOLO player detection (prepare + train + MLflow)
-│       └── court_detection/          # YOLO11 pose court (14 kpts, NDJSON import + train)
+│       ├── player_detection/         # YOLO player (prepare + train + MLflow)
+│       └── court_detection/          # YOLO11 pose court (14 kpts, NDJSON + train)
 ├── utils/
 │   ├── paths.py                      # Project root helper
 │   ├── read_yaml.py
@@ -148,7 +153,7 @@ SportAI/
 | `tests/nrt/` | Slow model non-regression vs baseline | CI when inference paths change (3.11) |
 | Lint / pre-commit | Ruff + mypy (+ file hygiene hooks) | CI job `lint` (matrix 3.11–3.12) |
 
-Production never imports training code. The only link between `trains/` and `pipeline/` is exported weight files (TorchScript `.pt` for the ball, Ultralytics `.pt` for players).
+Production never imports training code. The only link between `trains/` and `pipeline/` is weight files (TorchScript `.pt` for the ball; Ultralytics `.pt` for players and court). Ball TrackNet training/export lives outside this repo today (pipeline only loads the exported TorchScript).
 
 ---
 
@@ -220,7 +225,7 @@ class Analysis(ABC, Generic[FrameT]):
     data: dict  # the JSON document
 ```
 
-`TennisAnalysis(Analysis[TennisFrame])` sets `frame_class = TennisFrame`, so every frame is a `TennisFrame` with `.ball` and `.players`.
+`TennisAnalysis(Analysis[TennisFrame])` sets `frame_class = TennisFrame`, so every frame is a `TennisFrame` with `.ball`, `.players`, and optional `.homography`.
 
 ---
 
@@ -237,7 +242,7 @@ run_pipeline(sport, video_path, config)
    │
    ├─ for each model in config["models"]:
    │      load_class(name)(config)
-   │      model.run(video_reader, analysis)   → fills frame.ball / frame.players
+   │      model.run(video_reader, analysis)   → fills ball / players / homography
    │
    ├─ (optional) for each stat in config["stats"]:
    │      stat.run(video_reader, analysis)
@@ -288,7 +293,8 @@ data = run_pipeline(
     {
       "id": 0,
       "players": [],
-      "ball": null
+      "ball": null,
+      "homography": null
     },
     {
       "id": 3,
@@ -296,20 +302,27 @@ data = run_pipeline(
       "ball": {
         "position": [702, 492],
         "confidence": 0.6467
+      },
+      "homography": {
+        "keypoints": [[120.1, 80.2], "... 14 points ..."],
+        "confidences": [0.95, "..."]
       }
     }
   ]
 }
 ```
 
+`homography` is written by `TennisCourtModel` (14 court keypoints + confidences). It is not a full OpenCV `H` matrix yet — only the pose keypoints used downstream for court geometry.
+
 ### Object mapping
 
 | JSON path | Python class | Access pattern |
 |-----------|--------------|----------------|
 | root | `TennisAnalysis` | `analysis.data`, `analysis.frames` |
-| `frames[i]` | `TennisFrame` | `frame.id`, `frame.ball`, `frame.players` |
+| `frames[i]` | `TennisFrame` | `frame.id`, `frame.ball`, `frame.players`, `frame.homography` |
 | `frames[i].ball` | `TennisBall` | `frame.ball.position`, `frame.ball.confidence` |
 | `frames[i].players[j]` | `TennisPlayerAtFrame` | `player.bbox`, `player.confidence` |
+| `frames[i].homography` | `TennisHomography` | `frame.homography.keypoints`, `frame.homography.confidences` |
 
 Each class keeps a reference to its dict (`self.data`). Properties read/write that dict. There is no separate serialization step.
 
@@ -386,7 +399,26 @@ File: `pipeline/models/tennis/tennis_player_model.py`
 2. `YOLO.predict(..., classes=[0], stream=True)` (person / player class).
 3. For each box, build `TennisPlayerAtFrame` and assign `frame.players`.
 
-Exported from `pipeline.models.tennis` next to `TennisBallModel`. Production config lists both models; NRT player suite runs player-only.
+Exported from `pipeline.models.tennis` next to `TennisBallModel`. Production config lists all three models; NRT player suite runs player-only.
+
+### TennisCourtModel
+
+File: `pipeline/models/tennis/tennis_court_model.py`
+
+| Option | Default | Meaning |
+|--------|---------|---------|
+| `weight` | required | Path to an Ultralytics YOLO11 **pose** `.pt` (14 court keypoints) |
+| `device` | `"cpu"` | `"cuda"` / `"cuda:0"` / `"cpu"`. Falls back to CPU if CUDA is unavailable |
+| `input_size` | `(640, 640)` | Stored for reference (Ultralytics imgsz unless overridden) |
+
+**Inference logic**
+
+1. For each frame id, `video_reader.read_frame(i)`.
+2. `YOLO.predict(..., classes=[0], stream=True)` (class `tennis court`).
+3. Keep the best instance by mean keypoint confidence; read `keypoints.xy` (14×2).
+4. Write `TennisHomography.create(pts, confs)` into `frame.homography`.
+
+NRT court accuracy uses **still images + YOLO-pose labels** via `CourtDetectionEvaluator` (not `run_pipeline` on video). Pipeline court inference on video is what fills `frame.homography` in production runs.
 
 ---
 
@@ -421,6 +453,10 @@ models:
     config:
       device: "cuda"
       weight: "./models/TENNIS_PLAYER_MODEL_17_11_2026.pt"
+  - name: pipeline.models.tennis.TennisCourtModel
+    config:
+      device: "cuda"
+      weight: "./models/TENNIS_COURT_MODEL_18_11_2026.pt"
 outputs:
   path: ./outputs/tennis/stats.json
 ```
@@ -433,7 +469,7 @@ outputs:
 
 ### NRT configs — `tests/configs/nrt/tennis/`
 
-Each suite extends the production shape with dataset / weights resolution and regression settings.
+Each suite extends the production shape with dataset / weights resolution and regression settings. CI overrides `device` via `SPORTAI_DEVICE=cpu`; baselines store `"device": "cpu"`.
 
 **Ball** — `config_test_tennis_accuracy_ball_detection.yaml`:
 
@@ -482,6 +518,32 @@ regression:
   baseline: tests/baselines/tennis/tennis_player_detection.json
   metrics: [Accuracy, Precision, Recall, F1-Score, mAP50, mAP50-95]
   tolerance: 0.005
+```
+
+**Court** — `config_test_tennis_accuracy_court_detection.yaml`:
+
+```yaml
+models:
+  - name: pipeline.models.tennis.TennisCourtModel
+    config:
+      device: "cuda"
+      weight: "./models/TENNIS_COURT_MODEL_18_11_2026.pt"
+dataset:
+  local_dir: ./datasets/tennis/court_detection/test
+  repo_id: rnouteau/sportai-test-data
+  revision: v3
+  subset: tennis/court_detection/test
+weights:
+  repo_id: rnouteau/sportai-models
+  filename: tennis/court/TENNIS_COURT_MODEL_18_11_2026.pt
+evaluation:
+  pck_thresholds: [0.05, 0.1]
+  match_threshold: 0.05
+  oks_sigma: 0.05
+regression:
+  baseline: tests/baselines/tennis/tennis_court_detection.json
+  metrics: [PCK@0.05, PCK@0.1, OKS, Accuracy, Precision, Recall, F1-Score]
+  tolerance: 0.01
 ```
 
 Asset resolution (`tests/assets.py`):
@@ -534,8 +596,10 @@ pip install -r requirements-test.txt
 |------|------|--------|
 | Ball (TorchScript) | `models/TENNIS_BALL_MODEL_04_11_2026.pt` | Loaded by `TennisBallModel` via `torch.jit.load` |
 | Players (YOLO) | `models/TENNIS_PLAYER_MODEL_17_11_2026.pt` | Loaded by `TennisPlayerModel` (HF: `tennis/player/...`) |
-| YOLO pretrained | `models/based_models/yolo11s.pt` | Base weights for player training / annotator pre-label |
-| YOLO fine-tuned | `models/trained_models/tennis_player_yolo11s.pt` | Stable copy of Ultralytics `best.pt` after train |
+| Court (YOLO pose) | `models/TENNIS_COURT_MODEL_18_11_2026.pt` | Loaded by `TennisCourtModel` (HF: `tennis/court/...`) |
+| Player YOLO pretrained (annotator) | `models/based_models/yolo11s.pt` | Used by `tools/player_annotator.py` pre-label |
+| Player train based / stable | `trains/tennis/player_detection/models/{based_models,trained_models}/` | From `configs/train.yaml` |
+| Court train based / stable | `trains/tennis/court_detection/models/{based_models,trained_models}/` | e.g. `yolo11s-pose.pt`, `tennis_court_yolo11s_pose.pt` |
 
 Or point `weight:` in the pipeline config to another path.
 `.pt` files and the root `/models/` tree are gitignored (dirs kept via `.gitkeep`); `pipeline/models/` stays tracked. In CI, NRT weights are downloaded from Hugging Face.
@@ -671,19 +735,7 @@ Training packages under `trains/` are **not** imported by `pipeline/`.
 
 ### Ball detection (TrackNet)
 
-Training code lives under `trains/tennis/ball_detection/` (TrackNet family: v2 / v4 / v5 / WASB).
-
-After training, export a TorchScript artefact:
-
-```bash
-cd trains/tennis/ball_detection
-python export.py \
-  --model_path path/to/checkpoint.pth \
-  --output_path ../../../models/TENNIS_BALL_MODEL_04_11_2026.pt \
-  --architecture v2
-```
-
-`export.py` builds the architecture, loads the state dict, traces with a dummy `(1, C, 288, 512)` tensor, and saves a standalone `.pt` file that `TennisBallModel` loads with `torch.jit.load`.
+Ball **training / TorchScript export are not in this repo** under `trains/` today. Pipeline inference only needs the exported TorchScript at e.g. `models/TENNIS_BALL_MODEL_04_11_2026.pt` (or the HF path `tennis/ball/...`).
 
 ### Player detection (YOLO)
 
@@ -691,7 +743,9 @@ Code: `trains/tennis/player_detection/` (dataset prep + Ultralytics train + MLfl
 
 1. Put clips and annotations under `datasets/tennis/player_detection/videos/`
    (`clip.mp4` + `clip_players.csv` from the player annotator).
-2. Place the pretrained checkpoint at `models/based_models/yolo11s.pt`.
+2. Place the pretrained checkpoint at
+   `trains/tennis/player_detection/models/based_models/yolo11s.pt`
+   (the player annotator may still use `models/based_models/yolo11s.pt` for pre-label).
 3. Train from the package directory:
 
 ```bash
@@ -702,8 +756,9 @@ python train.py --config configs/train.yaml
 What it does:
 
 - Builds a YOLO dataset under `datasets/tennis/player_detection/yolo/` (seeded train/val split by video, or temporal chunks if a single video).
-- Fine-tunes from `models/based_models/`, writes Ultralytics outputs under `models/trained_models/<name>/`.
-- Copies `best.pt` to the stable path `models/trained_models/tennis_player_yolo11s.pt`.
+- Fine-tunes from `trains/tennis/player_detection/models/based_models/`, writes Ultralytics run dirs under `.../models/trained_models/<name>/`.
+- Copies `best.pt` to the stable path
+  `trains/tennis/player_detection/models/trained_models/tennis_player_yolo11s.pt`.
 - Logs metrics to SQLite `mlflow.db` when `mlflow.enabled: true` in the config.
 
 Inspect runs:
@@ -744,7 +799,9 @@ What training does:
 
 - Instantiates `configs/yolo11s-court-pose.yaml` (14 kpts), loads `yolo11s-pose.pt`, then trains.
 - Applies **train-time** augmentation from `train.augment` (HSV / mild translate-scale / `fliplr`; mosaic/mixup/rotation/perspective off).
-- Copies `best.pt` to `models/trained_models/tennis_court_yolo11s_pose.pt` and logs to `mlflow.db`.
+- Copies `best.pt` to
+  `trains/tennis/court_detection/models/trained_models/tennis_court_yolo11s_pose.pt`
+  and logs to `mlflow.db`.
 
 Quick visual check after training:
 
@@ -755,6 +812,8 @@ python scripts/predict_overlay.py `
   --image_path ../../../datasets/tennis/court_detection/yolo/images/val/some.jpg `
   --show
 ```
+
+Copy or upload the stable pose weights to the pipeline path (e.g. `models/TENNIS_COURT_MODEL_18_11_2026.pt` or HF `tennis/court/...`) for `TennisCourtModel`.
 
 ### Court NRT (local)
 
@@ -921,13 +980,15 @@ Ball — `tests/baselines/tennis/tennis_ball_detection.json`:
 
 Players — `tests/baselines/tennis/tennis_player_detection.json` (same shape; context uses player weights / dataset revision `v2` and IoU settings; metrics include mAP).
 
+Court — `tests/baselines/tennis/tennis_court_detection.json` (same shape; context uses court weights / dataset revision `v3`, `match_threshold` / `oks_sigma`; metrics include `PCK@*` / `OKS` / F1). Keys under `videos` are **image** filenames, not clips.
+
 The `context` block is compared first. If device, dataset revision, weights, or evaluation knobs differ from the baseline, the test fails immediately with a clear message asking you to regenerate — instead of dumping a confusing list of metric drifts caused by a config mismatch.
 
 **CPU vs GPU:** floating-point results are not bit-identical across devices. The CI baseline is generated on CPU (`SPORTAI_DEVICE=cpu`). Always regenerate baselines on the same device class that will verify them.
 
 ### Running the NRT locally
 
-`tests/nrt/tennis` runs **both** suites (ball + players):
+`tests/nrt/tennis` runs **three** suites (ball + players + court):
 
 ```bash
 # Use local datasets/ + models/ if present
@@ -1013,8 +1074,8 @@ Model scores from the latest NRT on `main` are published to the repository **Wik
 
 | Trigger | When |
 |---------|------|
-| `pull_request` | Changes under `pipeline/`, `tests/`, `configs/`, `utils/`, requirements, `pyproject.toml`, `.pre-commit-config.yaml`, or the workflow itself |
-| `push` to `main` | Same |
+| `pull_request` | Path-filtered: `pipeline/`, `tests/`, `configs/`, `utils/`, requirements, `pytest.ini`, `pyproject.toml`, `.pre-commit-config.yaml`, or the workflow itself |
+| `push` to `main` | **Any** push (no path filter) — unit/integration/coverage/lint always; NRT still gated by the `changes` path filter |
 | `workflow_dispatch` | Manual run; optional `update_baseline` input (NRT job only) |
 
 ### Jobs
@@ -1111,7 +1172,7 @@ Runs the full tennis NRT (ball + players + court) on the default branch (`main`)
 | `schedule` | `0 2 * * *` (02:00 UTC daily) |
 | `workflow_dispatch` | Manual run from the Actions tab |
 
-Same setup as the NRT job in **Tests** (Python **3.11**, CPU torch, HF cache, pytest, step summary, artefacts, **wiki Home publish**). If `HF_TOKEN` is missing, the workflow **fails** (unlike PR forks, where a skip is acceptable).
+Same setup as the NRT job in **Tests** (Python **3.11**, CPU torch, HF cache, pytest, step summary, artefacts, **wiki Home publish**). Artefact name is `tennis-nrt-reports-nightly` (PR job uses `tennis-nrt-reports`). If `HF_TOKEN` is missing, the workflow **fails** (unlike PR forks, where a skip is acceptable).
 
 ### Wiki Home (model results)
 
@@ -1151,11 +1212,13 @@ Expected Hub layout:
 ```
 rnouteau/sportai-test-data          # dataset (private)
 ├── tennis/ball_detection/test/     # *.mp4 + *.csv
-└── tennis/player_detection/test/   # *.mp4 + *_players.csv
+├── tennis/player_detection/test/   # *.mp4 + *_players.csv
+└── tennis/court_detection/test/    # images + YOLO-pose *.txt (14 kpts)
 
 rnouteau/sportai-models             # model repo (private)
 ├── tennis/ball/TENNIS_BALL_MODEL_04_11_2026.pt
-└── tennis/player/TENNIS_PLAYER_MODEL_17_11_2026.pt
+├── tennis/player/TENNIS_PLAYER_MODEL_17_11_2026.pt
+└── tennis/court/TENNIS_COURT_MODEL_18_11_2026.pt
 ```
 
 Upload example (Hugging Face CLI `hf` ≥ 2.x):
@@ -1167,32 +1230,36 @@ hf auth login
 hf repos create rnouteau/sportai-test-data --repo-type dataset --private
 hf upload rnouteau/sportai-test-data datasets/tennis/ball_detection/test tennis/ball_detection/test --repo-type dataset
 hf upload rnouteau/sportai-test-data datasets/tennis/player_detection/test tennis/player_detection/test --repo-type dataset
-hf repos tag create rnouteau/sportai-test-data v2 --repo-type dataset
+hf upload rnouteau/sportai-test-data datasets/tennis/court_detection/test tennis/court_detection/test --repo-type dataset
+hf repos tag create rnouteau/sportai-test-data v3 --repo-type dataset
 
 hf repos create rnouteau/sportai-models --private
 hf upload rnouteau/sportai-models models/TENNIS_BALL_MODEL_04_11_2026.pt tennis/ball/TENNIS_BALL_MODEL_04_11_2026.pt
 hf upload rnouteau/sportai-models models/TENNIS_PLAYER_MODEL_17_11_2026.pt tennis/player/TENNIS_PLAYER_MODEL_17_11_2026.pt
+hf upload rnouteau/sportai-models models/TENNIS_COURT_MODEL_18_11_2026.pt tennis/court/TENNIS_COURT_MODEL_18_11_2026.pt
 ```
 
-NRT configs pin dataset revisions separately: **ball → `v1`**, **players → `v2`**. Tag new dataset snapshots when you change either subset.
+NRT configs pin dataset revisions separately: **ball → `v1`**, **players → `v2`**, **court → `v3`**. Tag new dataset snapshots when you change a subset.
 
 For GitHub Actions, create a **read-only** token at [huggingface.co/settings/tokens](https://huggingface.co/settings/tokens) and store it as the `HF_TOKEN` repository secret.
 
-Keep test clips short (5–15 seconds). TrackNet on CPU is only a few frames per second; YOLO player NRT is lighter per frame but still adds wall time on long clips.
+Keep test clips short (5–15 seconds). TrackNet on CPU is only a few frames per second; YOLO player NRT is lighter per frame but still adds wall time on long clips. Court NRT is image-based (still adds wall time for pose inference over the test set).
 
 ---
 
 ## 17. How to extend the project
 
-### Add a new model (e.g. court keypoints)
+### Add a new model
+
+Follow the existing patterns (`TennisBallModel`, `TennisPlayerModel`, `TennisCourtModel`):
 
 1. Create `pipeline/models/tennis/tennis_<thing>_model.py` inheriting from `Model[TennisAnalysis]`.
 2. Implement `run(self, video_reader, analysis: TennisAnalysis)`.
 3. In `run`, write into frames (extend `TennisFrame` / analysis JSON as needed).
 4. Export the class from `pipeline/models/tennis/__init__.py`.
-5. Add an entry under `models:` in the YAML (see `TennisBallModel` / `TennisPlayerModel` for existing patterns).
+5. Add an entry under `models:` in the YAML.
 
-No change to `run.py`.
+No change to `run.py` for a new *tennis* model (analysis factory is still tennis-hardcoded when adding a new *sport*).
 
 ### Add a new stat
 
@@ -1210,9 +1277,9 @@ No change to `run.py`.
 
 ### Add a new NRT suite
 
-1. Copy the tennis NRT config / test / baseline pattern.
-2. Add a matrix line in `.github/workflows/pr-tests.yml` (or a dedicated workflow).
-3. Point `dataset` / `weights` / `regression.baseline` at the new assets.
+1. Copy the tennis NRT config / test / baseline pattern under `tests/configs/nrt/`, `tests/nrt/`, `tests/baselines/`.
+2. Wire CI: HF cache `hashFiles`, step summary, artefact paths, and `publish-wiki` / `render_wiki_home.py` suite inputs (today each suite is listed explicitly — there is no auto matrix yet).
+3. Point `dataset` / `weights` / `regression.baseline` at the new assets; regenerate the baseline on **CPU** (`SPORTAI_DEVICE=cpu`) to match CI.
 
 ---
 
@@ -1220,7 +1287,7 @@ No change to `run.py`.
 
 | Symptom | Likely cause | Fix |
 |---------|--------------|-----|
-| `RuntimeError: Attempting to deserialize object on a CUDA device...` | Config asks for `cuda` on a machine without GPU | Already handled by the CPU fallback in `TennisBallModel`; or set `SPORTAI_DEVICE=cpu`. |
+| `RuntimeError: Attempting to deserialize object on a CUDA device...` | Config asks for `cuda` on a machine without GPU | Tennis models fall back to CPU when CUDA is unavailable; or set `SPORTAI_DEVICE=cpu` for NRT. |
 | Test shows 0% recall but no exception | Model error was swallowed | Current `run.py` re-raises after `logger.exception`. Check the traceback. |
 | `FileNotFoundError` on weights in CI | Missing / wrong HF path or token | Verify `weights.filename`, repo visibility, and `HF_TOKEN`. |
 | Baseline comparison fails after switching GPU ↔ CPU | Different floating-point paths | Regenerate the baseline on the same device class as CI (`cpu`). |
