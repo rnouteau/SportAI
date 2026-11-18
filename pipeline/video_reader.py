@@ -35,6 +35,16 @@ class VideoReader:
         # Copy: some OpenCV backends reuse the decode buffer across reads.
         return frame.copy()
 
+    def iter_frames(self) -> Iterator[tuple[int, np.ndarray]]:
+        """Yield (index, frame) in one forward pass (no per-frame seek)."""
+        n = self.frame_count
+        if n <= 0:
+            return
+
+        self.cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
+        for index in range(n):
+            yield index, self._read_next()
+
     def iter_triplets(self) -> Iterator[tuple[int, np.ndarray, np.ndarray, np.ndarray]]:
         """Yield (index, prev, curr, next) with edge clamping, in one forward pass.
 

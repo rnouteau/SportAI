@@ -3,6 +3,7 @@ import numpy as np
 import torch
 import cv2
 
+from pipeline.device import resolve_device
 from pipeline.models.model import Model
 from pipeline.objects.tennis.tennis_analysis import TennisAnalysis
 from pipeline.objects.tennis.tennis_ball import TennisBall
@@ -14,10 +15,7 @@ class TennisBallModel(Model[TennisAnalysis]):
         super().__init__(config)
         logger.info("TennisBallModel initialized")
         self.weight = self.config.get("weight", None)
-        self.device = self.config.get("device", "cpu")
-        if self.device.startswith("cuda") and not torch.cuda.is_available():
-            logger.warning("CUDA is not available, using CPU instead")
-            self.device = "cpu"
+        self.device = resolve_device(str(self.config.get("device", "cpu")))
         self.model = (
             torch.jit.load(self.weight, map_location=self.device).eval()
             if self.weight

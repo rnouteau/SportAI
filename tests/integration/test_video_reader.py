@@ -63,6 +63,23 @@ def test_release_closes_capture(tmp_path: Path) -> None:
 
 
 @pytest.mark.integration
+def test_iter_frames_length_and_order(tmp_path: Path) -> None:
+    n_frames = 4
+    video_path = make_synthetic_video(tmp_path / "clip.mp4", n_frames=n_frames, size=(32, 24))
+    sequential = VideoReader(str(video_path))
+    random_access = VideoReader(str(video_path))
+    try:
+        frames = list(sequential.iter_frames())
+        assert len(frames) == n_frames
+        assert [idx for idx, _ in frames] == list(range(n_frames))
+        for idx, image in frames:
+            assert np.array_equal(image, random_access.read_frame(idx))
+    finally:
+        sequential.release()
+        random_access.release()
+
+
+@pytest.mark.integration
 def test_iter_triplets_length_and_edges(tmp_path: Path) -> None:
     n_frames = 5
     video_path = make_synthetic_video(tmp_path / "clip.mp4", n_frames=n_frames)

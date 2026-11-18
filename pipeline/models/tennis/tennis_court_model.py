@@ -3,6 +3,7 @@ import torch
 from ultralytics import YOLO
 from ultralytics.engine.results import Results
 
+from pipeline.device import resolve_device
 from pipeline.models.model import Model
 from pipeline.objects.tennis.tennis_analysis import TennisAnalysis
 from pipeline.objects.tennis.tennis_homography import TennisHomography
@@ -15,10 +16,7 @@ class TennisCourtModel(Model[TennisAnalysis]):
         logger.info("TennisCourtModel initialized")
         weight = self.config.get("weight")
         self.weight: str | None = str(weight) if weight else None
-        self.device = str(self.config.get("device", "cpu"))
-        if self.device.startswith("cuda") and not torch.cuda.is_available():
-            logger.warning("CUDA is not available, using CPU instead")
-            self.device = "cpu"
+        self.device = resolve_device(str(self.config.get("device", "cpu")))
         self.model: YOLO | None = YOLO(self.weight) if self.weight else None
         self.input_size = self.config.get("input_size", (640, 640))
 
@@ -32,11 +30,10 @@ class TennisCourtModel(Model[TennisAnalysis]):
             logger.error("No weight loaded, cannot run")
             return
 
-        for frame in analysis.frames:
-            frame_id = frame.id
-            if frame_id is None:
-                continue
-            image = video_reader.read_frame(frame_id)
+        n_frames = len(analysis.frames)
+        for frame_id, image in video_reader.iter_frames():
+            if frame_id >= n_frames:
+                break
             results = self.model.predict(
                 image,
                 classes=[0],

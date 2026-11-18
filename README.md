@@ -54,7 +54,8 @@ SportAI/
 │   └── tennis_config.yaml
 ├── pipeline/                         # Inference / analysis runtime
 │   ├── run.py                        # Orchestrator (CLI entrypoint)
-│   ├── video_reader.py               # OpenCV wrapper (read_frame + iter_triplets)
+│   ├── video_reader.py               # OpenCV wrapper (read_frame + iter_frames + iter_triplets)
+│   ├── device.py                     # resolve_device (config + SPORTAI_DEVICE + CUDA fallback)
 │   ├── models/
 │   │   ├── model.py                  # Abstract Model[AnalysisT] base
 │   │   └── tennis/
@@ -171,10 +172,19 @@ Production never imports training code. The only link between `trains/` and `pip
 | `video_path`, `fps`, `width`, `height`, `frame_count` | Video metadata |
 | `info()` | Dict written into the analysis JSON under `"video"` |
 | `read_frame(i)` | Seek to frame `i` and return a BGR `np.ndarray` (random access) |
+| `iter_frames()` | One forward pass: yield `(i, frame)` without per-frame seek |
 | `iter_triplets()` | One forward pass: yield `(i, prev, curr, next)` with edge clamping |
 | `release()` | Close the capture |
 
-`TennisBallModel` uses `iter_triplets()` so inference does not seek three times per frame (major NRT speedup).
+`TennisBallModel` uses `iter_triplets()`; `TennisPlayerModel` / `TennisCourtModel` use `iter_frames()` so YOLO inference does not seek once per frame (major speedup on long clips / NRT).
+
+### Device (`pipeline/device.py`)
+
+All tennis models call `resolve_device(config["device"])`:
+
+1. If `SPORTAI_DEVICE` is set in the environment, it **overrides** the YAML `device` (same knob as NRT/CI).
+2. Otherwise use the config value (default `"cpu"`).
+3. If the result starts with `cuda` but CUDA is unavailable → fall back to `"cpu"` with a warning.
 
 ### Model
 
@@ -370,7 +380,7 @@ File: `pipeline/models/tennis/tennis_ball_model.py`
 | Option | Default | Meaning |
 |--------|---------|---------|
 | `weight` | required | Path to a TorchScript `.pt` file |
-| `device` | `"cpu"` | `"cuda"` / `"cuda:0"` / `"cpu"`. Falls back to CPU if CUDA is unavailable |
+| `device` | `"cpu"` | Via `resolve_device` (see §3); `SPORTAI_DEVICE` overrides |
 | `threshold` | `0.5` | Heatmap binarization threshold |
 | `input_size` | `(288, 512)` | Model input `(H, W)` |
 
@@ -393,13 +403,13 @@ File: `pipeline/models/tennis/tennis_player_model.py`
 | Option | Default | Meaning |
 |--------|---------|---------|
 | `weight` | required | Path to an Ultralytics YOLO `.pt` checkpoint |
-| `device` | `"cpu"` | `"cuda"` / `"cuda:0"` / `"cpu"`. Falls back to CPU if CUDA is unavailable |
+| `device` | `"cpu"` | Via `resolve_device` (see §3); `SPORTAI_DEVICE` overrides |
 | `input_size` | `(640, 640)` | Stored for reference (Ultralytics uses its own imgsz defaults unless overridden) |
 
 **Inference logic**
 
-1. For each frame id, `video_reader.read_frame(i)`.
-2. `YOLO.predict(..., classes=[0], stream=True)` (person / player class).
+1. Walk the video once via `video_reader.iter_frames()`.
+2. `YOLO.predict(..., classes=[0], stream=True, device=self.device)` (person / player class).
 3. For each box, build `TennisPlayerAtFrame` and assign `frame.players`.
 
 Exported from `pipeline.models.tennis` next to `TennisBallModel`. Production config lists all three models; NRT player suite runs player-only.
@@ -411,13 +421,13 @@ File: `pipeline/models/tennis/tennis_court_model.py`
 | Option | Default | Meaning |
 |--------|---------|---------|
 | `weight` | required | Path to an Ultralytics YOLO11 **pose** `.pt` (14 court keypoints) |
-| `device` | `"cpu"` | `"cuda"` / `"cuda:0"` / `"cpu"`. Falls back to CPU if CUDA is unavailable |
+| `device` | `"cpu"` | Via `resolve_device` (see §3); `SPORTAI_DEVICE` overrides |
 | `input_size` | `(640, 640)` | Stored for reference (Ultralytics imgsz unless overridden) |
 
 **Inference logic**
 
-1. For each frame id, `video_reader.read_frame(i)`.
-2. `YOLO.predict(..., classes=[0], stream=True)` (class `tennis court`).
+1. Walk the video once via `video_reader.iter_frames()`.
+2. `YOLO.predict(..., classes=[0], stream=True, device=self.device)` (class `tennis court`).
 3. Keep the best instance by mean keypoint confidence; read `keypoints.xy` (14×2).
 4. Write `TennisHomography.create(pts, confs)` into `frame.homography`.
 
@@ -892,7 +902,8 @@ OpenCV writes a tiny synthetic `.mp4` under pytest `tmp_path` (helper: `tests/he
 
 | File | What it locks |
 |------|----------------|
-| `tests/integration/test_video_reader.py` | Metadata, `read_frame`, out-of-bounds, `release`, `iter_triplets` equivalence |
+| `tests/integration/test_video_reader.py` | Metadata, `read_frame`, `iter_frames`, `iter_triplets` equivalence |
+| `tests/unit/test_resolve_device.py` | `SPORTAI_DEVICE` override + CUDA→CPU fallback |
 | `tests/integration/test_run_pipeline_fake_model.py` | `run_pipeline(..., test=True)` writes balls + analysis dict shape |
 | `tests/integration/test_ball_tracking_evaluator_flow.py` | Pipeline → `match_prediction` → `compute` (TP/FN/TN/FP2 scenario) |
 | `tests/integration/test_player_detection_evaluator_flow.py` | Fake player model → `match_prediction` → `compute` (TP/FN/TN) |
@@ -1296,7 +1307,7 @@ No change to `run.py` for a new *tennis* model (analysis factory is still tennis
 
 | Symptom | Likely cause | Fix |
 |---------|--------------|-----|
-| `RuntimeError: Attempting to deserialize object on a CUDA device...` | Config asks for `cuda` on a machine without GPU | Tennis models fall back to CPU when CUDA is unavailable; or set `SPORTAI_DEVICE=cpu` for NRT. |
+| `RuntimeError: Attempting to deserialize object on a CUDA device...` | Config asks for `cuda` on a machine without GPU | `resolve_device` falls back to CPU; or set `SPORTAI_DEVICE=cpu` (overrides YAML in pipeline and NRT). |
 | Test shows 0% recall but no exception | Model error was swallowed | Current `run.py` re-raises after `logger.exception`. Check the traceback. |
 | `FileNotFoundError` on weights in CI | Missing / wrong HF path or token | Verify `weights.filename`, repo visibility, and `HF_TOKEN`. |
 | Baseline comparison fails after switching GPU ↔ CPU | Different floating-point paths | Regenerate the baseline on the same device class as CI (`cpu`). |
