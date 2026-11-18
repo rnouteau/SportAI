@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
-"""Render the GitHub Wiki Home.md from NRT report.json files (+ F1 history)."""
+"""Render the GitHub Wiki Home.md from NRT report.json files (+ F1 history).
+
+Home.md is charts-only: a short latest-run header, then one Mermaid F1 chart per suite.
+"""
 
 from __future__ import annotations
 
@@ -10,12 +13,14 @@ from pathlib import Path
 
 SUITE_TENNIS_BALL = "tennis_ball_tracking"
 SUITE_TENNIS_PLAYER = "tennis_player_detection"
+SUITE_TENNIS_COURT = "tennis_court_detection"
 HISTORY_LIMIT = 120
 F1_METRIC = "F1-Score"
 
 SUITE_TITLES = {
     SUITE_TENNIS_BALL: "Tennis ball tracking",
     SUITE_TENNIS_PLAYER: "Tennis player detection",
+    SUITE_TENNIS_COURT: "Tennis court detection",
 }
 
 
@@ -110,15 +115,6 @@ def append_run(
     return out
 
 
-def _status_label(conclusion: str) -> str:
-    lower = (conclusion or "").lower()
-    if lower in {"success", "pass", "passed"}:
-        return "PASS"
-    if lower in {"failure", "fail", "failed"}:
-        return "FAIL"
-    return (conclusion or "unknown").upper()
-
-
 def mermaid_f1_chart(history: list[dict], suite: str) -> str:
     points = [item for item in history if item.get("suite") == suite and item.get("f1") is not None]
     if not points:
@@ -147,112 +143,6 @@ def mermaid_f1_chart(history: list[dict], suite: str) -> str:
     )
 
 
-def history_table(history: list[dict], suite: str) -> str:
-    rows = []
-    for item in reversed([h for h in history if h.get("suite") == suite]):
-        commit = item.get("commit") or ""
-        short = commit[:7] if commit else "—"
-        run_url = item.get("run_url") or ""
-        commit_cell = f"[`{short}`]({run_url})" if run_url and short != "—" else f"`{short}`"
-        rows.append(
-            [
-                str(item.get("date", ""))[:10] or "—",
-                _fmt(item.get("f1")),
-                _status_label(str(item.get("conclusion") or "")),
-                commit_cell,
-            ]
-        )
-    return _md_table(["Date", "F1", "Status", "Commit"], rows)
-
-
-def build_metric_rows(
-    current: dict, baseline: dict | None, tolerance: float
-) -> tuple[list[list[str]], bool]:
-    rows: list[list[str]] = []
-    all_ok = True
-    baseline_videos = (baseline or {}).get("videos", {})
-    for video, metrics in current.get("videos", {}).items():
-        expected_metrics = baseline_videos.get(video, {})
-        for metric, value in metrics.items():
-            expected = expected_metrics.get(metric)
-            if baseline is None:
-                status = "new baseline"
-                delta = None
-                all_ok = False
-            elif expected is None:
-                status = "missing from baseline"
-                delta = None
-                all_ok = False
-            else:
-                delta = value - expected
-                status = "OK" if abs(delta) <= tolerance else "DIFF"
-                if status != "OK":
-                    all_ok = False
-            rows.append(
-                [
-                    video,
-                    metric,
-                    _fmt(value),
-                    _fmt(expected),
-                    _fmt(delta),
-                    status,
-                ]
-            )
-    return rows, all_ok and baseline is not None
-
-
-def build_count_rows(results: list[dict]) -> list[list[str]]:
-    rows = []
-    for item in results:
-        rows.append(
-            [
-                str(item.get("Video", "")),
-                str(item.get("Total", "")),
-                str(item.get("TP", "")),
-                str(item.get("FP", "")),
-                str(item.get("TN", "")),
-                str(item.get("FN", "")),
-            ]
-        )
-    return rows
-
-
-def render_suite_section(report: dict, *, suite: str, tolerance: float) -> tuple[list[str], bool]:
-    title = SUITE_TITLES.get(suite, suite)
-    current = report["current"]
-    baseline = report.get("baseline")
-    results = report.get("results") or []
-    context = current.get("context") or {}
-    metric_rows, metrics_ok = build_metric_rows(current, baseline, tolerance)
-
-    lines = [
-        f"## {title}",
-        "",
-        "### Context",
-        "",
-        _md_table(
-            ["Key", "Value"],
-            [[key, f"`{value}`"] for key, value in context.items()] or [["—", "—"]],
-        ),
-        "",
-        "### Metrics vs baseline",
-        "",
-        _md_table(
-            ["Video", "Metric", "Current", "Baseline", "Delta", "Status"],
-            metric_rows,
-        ),
-        "",
-        "### Counts",
-        "",
-        _md_table(
-            ["Video", "Total", "TP", "FP", "TN", "FN"],
-            build_count_rows(results),
-        ),
-        "",
-    ]
-    return lines, metrics_ok
-
-
 def render_home(
     reports: dict[str, dict],
     history: list[dict],
@@ -261,20 +151,11 @@ def render_home(
     run_url: str,
     workflow: str,
     conclusion: str,
-    tolerance: float,
     generated_at: str | None = None,
 ) -> str:
-    """Render Home.md for one or more suite reports (suite id -> report dict)."""
-    suite_oks: list[bool] = []
-    section_blocks: list[str] = []
-    for suite, report in reports.items():
-        lines, ok = render_suite_section(report, suite=suite, tolerance=tolerance)
-        suite_oks.append(ok)
-        section_blocks.extend(lines)
-
-    metrics_ok = all(suite_oks) if suite_oks else False
+    """Render charts-only Home.md for one or more suite reports (suite id -> report dict)."""
     if conclusion.lower() in {"success", "pass", "passed"}:
-        status = "PASS" if metrics_ok else "PASS (see metric notes)"
+        status = "PASS"
     elif conclusion.lower() in {"failure", "fail", "failed"}:
         status = "FAIL"
     else:
@@ -288,6 +169,8 @@ def render_home(
         "",
         "Auto-updated from NRT runs on `main` (CI + nightly). Pull request NRT runs do **not** update this page.",
         "",
+        "Charts only: TOTAL `F1-Score` over time for each suite (history in wiki `nrt-history.json`).",
+        "",
         "## Latest run",
         "",
         _md_table(
@@ -298,13 +181,10 @@ def render_home(
                 ["Workflow", workflow or "—"],
                 ["Commit", f"`{short_sha}`" if commit else "—"],
                 ["Actions run", f"[open]({run_url})" if run_url else "—"],
-                ["Tolerance", _fmt(tolerance)],
             ],
         ),
         "",
         "## F1 over time",
-        "",
-        "TOTAL `F1-Score` for each NRT publish on `main` (kept in wiki `nrt-history.json`).",
         "",
     ]
 
@@ -316,13 +196,10 @@ def render_home(
                 "",
                 mermaid_f1_chart(history, suite),
                 "",
-                history_table(history, suite),
-                "",
             ]
         )
 
-    lines.extend(section_blocks)
-    return "\n".join(lines)
+    return "\n".join(lines).rstrip() + "\n"
 
 
 def main() -> None:
@@ -334,6 +211,12 @@ def main() -> None:
         default=None,
         help="Optional player NRT report.json",
     )
+    parser.add_argument(
+        "--report-court",
+        type=Path,
+        default=None,
+        help="Optional court NRT report.json",
+    )
     parser.add_argument("--output", type=Path, required=True, help="Path to write Home.md")
     parser.add_argument("--history-in", type=Path, default=None, help="Existing nrt-history.json")
     parser.add_argument(
@@ -343,7 +226,12 @@ def main() -> None:
     parser.add_argument("--run-url", default="", help="GitHub Actions run URL")
     parser.add_argument("--workflow", default="", help="Workflow name")
     parser.add_argument("--conclusion", default="unknown", help="Job conclusion (success/failure)")
-    parser.add_argument("--tolerance", type=float, default=0.005, help="Baseline metric tolerance")
+    parser.add_argument(
+        "--tolerance",
+        type=float,
+        default=0.005,
+        help="Accepted for CLI compatibility (unused in charts-only Home)",
+    )
     parser.add_argument(
         "--suite",
         default=SUITE_TENNIS_BALL,
@@ -353,6 +241,11 @@ def main() -> None:
         "--suite-player",
         default=SUITE_TENNIS_PLAYER,
         help="Suite id for --report-player",
+    )
+    parser.add_argument(
+        "--suite-court",
+        default=SUITE_TENNIS_COURT,
+        help="Suite id for --report-court",
     )
     args = parser.parse_args()
 
@@ -385,6 +278,19 @@ def main() -> None:
             conclusion=args.conclusion,
         )
 
+    if args.report_court is not None and args.report_court.exists():
+        court_report = json.loads(args.report_court.read_text(encoding="utf-8"))
+        reports[args.suite_court] = court_report
+        history = append_run(
+            history,
+            suite=args.suite_court,
+            date=generated_at,
+            f1=extract_total_f1(court_report),
+            commit=args.commit,
+            run_url=args.run_url,
+            conclusion=args.conclusion,
+        )
+
     markdown = render_home(
         reports,
         history,
@@ -392,7 +298,6 @@ def main() -> None:
         run_url=args.run_url,
         workflow=args.workflow,
         conclusion=args.conclusion,
-        tolerance=args.tolerance,
         generated_at=generated_at,
     )
     args.output.parent.mkdir(parents=True, exist_ok=True)

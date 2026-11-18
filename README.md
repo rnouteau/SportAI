@@ -93,13 +93,16 @@ SportAI/
 │   │   └── test_ball_tracking_evaluator_flow.py
 │   ├── baselines/tennis/
 │   │   ├── tennis_ball_detection.json
-│   │   └── tennis_player_detection.json
+│   │   ├── tennis_player_detection.json
+│   │   └── tennis_court_detection.json
 │   ├── configs/nrt/tennis/
 │   │   ├── config_test_tennis_accuracy_ball_detection.yaml
-│   │   └── config_test_tennis_accuracy_players_detection.yaml
+│   │   ├── config_test_tennis_accuracy_players_detection.yaml
+│   │   └── config_test_tennis_accuracy_court_detection.yaml
 │   └── nrt/tennis/                   # Slow model NRT (@pytest.mark.nrt)
 │       ├── test_tennis_accuracy_ball_detection.py
-│       └── test_tennis_accuracy_players_detection.py
+│       ├── test_tennis_accuracy_players_detection.py
+│       └── test_tennis_accuracy_court_detection.py
 ├── models/                           # Local weights (gitignored root dir)
 │   ├── based_models/                 # Pretrained checkpoints (e.g. yolo11s.pt)
 │   └── trained_models/               # Fine-tuned weights (Ultralytics runs + stable .pt)
@@ -119,7 +122,7 @@ SportAI/
 │   ├── read_yaml.py
 │   └── video_downloader.py           # yt-dlp helper
 ├── scripts/
-│   └── render_wiki_home.py           # report.json + nrt-history → Wiki Home.md
+│   └── render_wiki_home.py           # report.json + nrt-history → Wiki Home.md (F1 charts only)
 ├── .github/
 │   ├── actions/publish-wiki/         # Composite action: render + push wiki
 │   └── workflows/
@@ -753,7 +756,28 @@ python scripts/predict_overlay.py `
   --show
 ```
 
-Pipeline / NRT wiring for court keypoints is not included yet.
+### Court NRT (local)
+
+Layout expected by the evaluator (YOLO-pose stills, 14 kpts):
+
+```
+datasets/tennis/court_detection/test/
+  *.jpg|png          # or images/
+  *.txt              # sibling labels, or labels/ with same stems
+```
+
+Each label line: `cls xc yc w h` then `x y v` × 14 (normalized), same as the NDJSON import.
+
+Metrics (per image + TOTAL): `PCK@0.05`, `PCK@0.1`, `OKS`, Accuracy / Precision / Recall / F1 at `match_threshold` (default 0.05×√(bbox area)). Matching is **by keypoint id** (0–13).
+
+```bash
+$env:SPORTAI_DEVICE="cpu"   # or cuda
+python -m pytest tests/nrt/tennis/test_tennis_accuracy_court_detection.py -m nrt -s -rs
+# first time / intentional model change:
+python -m pytest tests/nrt/tennis/test_tennis_accuracy_court_detection.py -m nrt -s --update-baseline
+```
+
+Reports: `outputs/tests/tennis_court_detection/report.md` (+ `.json`). Baseline: `tests/baselines/tennis/tennis_court_detection.json`.
 
 ---
 
@@ -790,9 +814,10 @@ These never open a video or load TorchScript. Data is built in memory (`dict`, `
 | `tests/unit/test_ball_metrics.py` | `match_prediction` + `compute` (TP / FP1 / FP2 / TN / FN) |
 | `tests/unit/test_ball_metrics_properties.py` | Hypothesis: counts sum to Total; metrics stay in `[0, 1]` |
 | `tests/unit/test_player_detection_metrics.py` | IoU / greedy match (TP if IoU ≥ 0.5 else FP) + mAP helpers |
+| `tests/unit/test_court_detection_metrics.py` | PCK / OKS / per-id keypoint TP-FP-FN, `parse_yolo_pose_label`, `discover_image_label_pairs` |
 | `tests/unit/test_baseline.py` | `build_baseline`, save/load, `compare_to_baseline` cases |
 
-Shared evaluators live under `tests/evaluation/` (`ball_detection_evaluation.py`, `player_detection_evaluation.py`) so unit, integration and NRT tests reuse the same metric code without importing the NRT entrypoints.
+Shared evaluators live under `tests/evaluation/` (`ball_detection_evaluation.py`, `player_detection_evaluation.py`, `court_detection_evaluation.py`) so unit, integration and NRT tests reuse the same metric code without importing the NRT entrypoints.
 
 ### Integration tests (medium)
 
@@ -803,6 +828,8 @@ OpenCV writes a tiny synthetic `.mp4` under pytest `tmp_path` (helper: `tests/he
 | `tests/integration/test_video_reader.py` | Metadata, `read_frame`, out-of-bounds, `release`, `iter_triplets` equivalence |
 | `tests/integration/test_run_pipeline_fake_model.py` | `run_pipeline(..., test=True)` writes balls + analysis dict shape |
 | `tests/integration/test_ball_tracking_evaluator_flow.py` | Pipeline → `match_prediction` → `compute` (TP/FN/TN/FP2 scenario) |
+| `tests/integration/test_player_detection_evaluator_flow.py` | Fake player model → `match_prediction` → `compute` (TP/FN/TN) |
+| `tests/integration/test_court_detection_evaluator_flow.py` | Synthetic image + mocked pose → `CourtDetectionEvaluator.run_test` (PCK/OKS/F1) |
 
 ### Coverage (`pytest-cov`)
 
@@ -918,6 +945,7 @@ Then commit:
 
 - `tests/baselines/tennis/tennis_ball_detection.json`
 - `tests/baselines/tennis/tennis_player_detection.json`
+- `tests/baselines/tennis/tennis_court_detection.json`
 
 Reports are written to:
 
@@ -926,9 +954,11 @@ outputs/tests/tennis_ball_detection/report.md
 outputs/tests/tennis_ball_detection/report.json
 outputs/tests/tennis_player_detection/report.md
 outputs/tests/tennis_player_detection/report.json
+outputs/tests/tennis_court_detection/report.md
+outputs/tests/tennis_court_detection/report.json
 ```
 
-`report.md` shows, per video and metric: current value, baseline, delta, and status (`OK` / `DIFF` / `new baseline`). Player reports also include `mAP50` / `mAP50-95`.
+`report.md` shows, per video/image and metric: current value, baseline, delta, and status (`OK` / `DIFF` / `new baseline`). Player reports also include `mAP50` / `mAP50-95`; court reports include `PCK@*` / `OKS`.
 
 ### When the model or post-processing changes
 
@@ -977,7 +1007,7 @@ Two workflows:
 | **Tests** | [`.github/workflows/pr-tests.yml`](.github/workflows/pr-tests.yml) | `unit`/`lint` matrix 3.11–3.12; `integration`/`coverage` on 3.11; NRT filtered |
 | **NRT Nightly** | [`.github/workflows/nrt-nightly.yml`](.github/workflows/nrt-nightly.yml) | Full NRT on `main` every night (Python 3.11, no path filter) |
 
-Model scores from the latest NRT on `main` are published to the repository **Wiki → Home** page (auto-generated from ball + player `report.json` files).
+Model scores from the latest NRT on `main` are published to the repository **Wiki → Home** page (auto-generated charts from ball + player + court `report.json` files).
 
 ### Tests (`pr-tests.yml`)
 
@@ -1054,11 +1084,11 @@ Runs only if:
 Then:
 
 1. Install CPU `torch` + `torchvision` + `requirements-test.txt` (Python 3.11)
-2. Cache `~/.cache/huggingface` (keyed on both NRT tennis configs)
-3. `pytest tests/nrt/tennis -m nrt` with `SPORTAI_DEVICE=cpu` (ball **and** players)
-4. Append both `report.md` files to the GitHub Step Summary
-5. Upload artefacts: both report folders + both baseline JSON files
-6. On `main` only: publish Wiki Home via [`.github/actions/publish-wiki`](.github/actions/publish-wiki) (ball + player reports)
+2. Cache `~/.cache/huggingface` (keyed on ball / players / court NRT configs)
+3. `pytest tests/nrt/tennis -m nrt` with `SPORTAI_DEVICE=cpu` (ball + players + court)
+4. Append ball / players / court `report.md` files to the GitHub Step Summary
+5. Upload artefacts: all three report folders + baseline JSON files
+6. On `main` only: publish Wiki Home via [`.github/actions/publish-wiki`](.github/actions/publish-wiki) (ball + player + court reports)
 
 `update_baseline` from `workflow_dispatch` is passed only to this job. Timeout is **90** minutes.
 
@@ -1074,7 +1104,7 @@ If `HF_TOKEN` is missing (e.g. PR from a fork), the NRT step is skipped with a w
 
 ### NRT Nightly (`nrt-nightly.yml`)
 
-Runs the full tennis NRT (ball + players) on the default branch (`main`) without the path filter.
+Runs the full tennis NRT (ball + players + court) on the default branch (`main`) without the path filter.
 
 | Trigger | When |
 |---------|------|
@@ -1089,14 +1119,16 @@ After each NRT on `main` (nightly, push, or manual), CI regenerates the wiki **H
 
 - `outputs/tests/tennis_ball_detection/report.json`
 - `outputs/tests/tennis_player_detection/report.json` (optional; skipped with a warning if missing)
+- `outputs/tests/tennis_court_detection/report.json` (optional; skipped with a warning if missing)
 
 via [`scripts/render_wiki_home.py`](scripts/render_wiki_home.py) and [`.github/actions/publish-wiki`](.github/actions/publish-wiki).
 
-The page includes:
+Home is **charts only**:
 
-- latest run status
-- **two** F1 history sections (wiki suite ids `tennis_ball_tracking` and `tennis_player_detection` in `nrt-history.json`; report folders remain `tennis_*_detection`)
-- full metrics / counts for ball and for players (incl. `mAP50` / `mAP50-95` when present)
+- short latest-run header (status / commit / Actions link)
+- **one Mermaid F1 chart per suite** (TOTAL `F1-Score` over time)
+
+Suite ids in `nrt-history.json`: `tennis_ball_tracking`, `tennis_player_detection`, `tennis_court_detection` (report folders remain `tennis_*_detection`). No metrics tables, counts, or text history on Home.
 
 History is stored in the wiki repo as `nrt-history.json` (not in SportAI git), capped at the last 120 points, with dedup by Actions run URL or commit+day **per suite**. **PR NRT runs do not update the wiki.**
 

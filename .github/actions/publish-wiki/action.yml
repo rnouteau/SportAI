@@ -9,6 +9,10 @@ inputs:
     description: Optional path to the player NRT report.json
     required: false
     default: ""
+  report_json_court:
+    description: Optional path to the court NRT report.json
+    required: false
+    default: ""
   token:
     description: PAT with permission to push to the repository wiki
     required: true
@@ -56,6 +60,14 @@ runs:
             echo "::warning::Player report not found at ${{ inputs.report_json_player }} — wiki Home without player section"
           fi
         fi
+        if [ -n "${{ inputs.report_json_court }}" ] && [ -f "${{ inputs.report_json_court }}" ]; then
+          echo "court_report=${{ inputs.report_json_court }}" >> "$GITHUB_OUTPUT"
+        else
+          echo "court_report=" >> "$GITHUB_OUTPUT"
+          if [ -n "${{ inputs.report_json_court }}" ]; then
+            echo "::warning::Court report not found at ${{ inputs.report_json_court }} — wiki Home without court section"
+          fi
+        fi
         echo "skip=false" >> "$GITHUB_OUTPUT"
 
     - name: Checkout wiki
@@ -74,6 +86,9 @@ runs:
         EXTRA_ARGS=()
         if [ -n "${{ steps.check.outputs.player_report }}" ]; then
           EXTRA_ARGS+=(--report-player "${{ steps.check.outputs.player_report }}")
+        fi
+        if [ -n "${{ steps.check.outputs.court_report }}" ]; then
+          EXTRA_ARGS+=(--report-court "${{ steps.check.outputs.court_report }}")
         fi
         python "$GITHUB_WORKSPACE/scripts/render_wiki_home.py" \
           --report "${{ inputs.report_json }}" \

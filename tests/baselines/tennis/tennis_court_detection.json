@@ -1,0 +1,497 @@
+{
+  "context": {
+    "device": "cuda",
+    "dataset_revision": "v3",
+    "weights": "TENNIS_COURT_MODEL_18_11_2026.pt",
+    "match_threshold": 0.05,
+    "oks_sigma": 0.05
+  },
+  "videos": {
+    "-0M6ixK7aIU_1150_png.rf.b3270812b04e81971c6a8a12bfb8bbcf.jpg": {
+      "PCK@0.05": 1.0,
+      "PCK@0.1": 1.0,
+      "OKS": 0.9976,
+      "Accuracy": 1.0,
+      "Precision": 1.0,
+      "Recall": 1.0,
+      "F1-Score": 1.0
+    },
+    "-5zNAhwRoPE_2800_png.rf.7298250484c89c325d08dd22c5a5e075.jpg": {
+      "PCK@0.05": 1.0,
+      "PCK@0.1": 1.0,
+      "OKS": 0.9855,
+      "Accuracy": 1.0,
+      "Precision": 1.0,
+      "Recall": 1.0,
+      "F1-Score": 1.0
+    },
+    "-_5ljBK4HnI_500_png.rf.64ff3826260fc76bc09d89b80bd05844.jpg": {
+      "PCK@0.05": 1.0,
+      "PCK@0.1": 1.0,
+      "OKS": 0.9897,
+      "Accuracy": 1.0,
+      "Precision": 1.0,
+      "Recall": 1.0,
+      "F1-Score": 1.0
+    },
+    "0SCwfqgiCvE_350_png.rf.d266cd9f42772ed01a79220612f8cbd9.jpg": {
+      "PCK@0.05": 1.0,
+      "PCK@0.1": 1.0,
+      "OKS": 0.9886,
+      "Accuracy": 1.0,
+      "Precision": 1.0,
+      "Recall": 1.0,
+      "F1-Score": 1.0
+    },
+    "22gv4Rnezno_450_png.rf.38d4b5416cd9731ab51718d15969b21f.jpg": {
+      "PCK@0.05": 1.0,
+      "PCK@0.1": 1.0,
+      "OKS": 0.9838,
+      "Accuracy": 1.0,
+      "Precision": 1.0,
+      "Recall": 1.0,
+      "F1-Score": 1.0
+    },
+    "3rKvVDHLDE0_150_png.rf.7e45220157b7d44898e37aece9dc16c1.jpg": {
+      "PCK@0.05": 1.0,
+      "PCK@0.1": 1.0,
+      "OKS": 0.9906,
+      "Accuracy": 1.0,
+      "Precision": 1.0,
+      "Recall": 1.0,
+      "F1-Score": 1.0
+    },
+    "7hjEYRnDFVY_1750_png.rf.49c12d7025d9c39d9858164eb137ff85.jpg": {
+      "PCK@0.05": 1.0,
+      "PCK@0.1": 1.0,
+      "OKS": 0.9303,
+      "Accuracy": 0.9286,
+      "Precision": 0.9286,
+      "Recall": 1.0,
+      "F1-Score": 0.963
+    },
+    "7hjEYRnDFVY_1800_png.rf.0a80660751f0f6225f644abd9c1fce51.jpg": {
+      "PCK@0.05": 1.0,
+      "PCK@0.1": 1.0,
+      "OKS": 0.9069,
+      "Accuracy": 0.9286,
+      "Precision": 0.9286,
+      "Recall": 1.0,
+      "F1-Score": 0.963
+    },
+    "7hjEYRnDFVY_2300_png.rf.5e081ff5e8bbb5a1fec81ceab0bb51cc.jpg": {
+      "PCK@0.05": 1.0,
+      "PCK@0.1": 1.0,
+      "OKS": 0.9912,
+      "Accuracy": 1.0,
+      "Precision": 1.0,
+      "Recall": 1.0,
+      "F1-Score": 1.0
+    },
+    "7kIDkiQQo9Q_100_png.rf.4d63eba479f25e8e5f54a9de2bcf8dce.jpg": {
+      "PCK@0.05": 1.0,
+      "PCK@0.1": 1.0,
+      "OKS": 0.9849,
+      "Accuracy": 1.0,
+      "Precision": 1.0,
+      "Recall": 1.0,
+      "F1-Score": 1.0
+    },
+    "7kIDkiQQo9Q_1150_png.rf.1e18075ab73caf18445f918f90f39916.jpg": {
+      "PCK@0.05": 1.0,
+      "PCK@0.1": 1.0,
+      "OKS": 0.9751,
+      "Accuracy": 1.0,
+      "Precision": 1.0,
+      "Recall": 1.0,
+      "F1-Score": 1.0
+    },
+    "8QwGLxdSSRo_50_png.rf.719f9e399c7e5048e663d9ca8cbeee1e.jpg": {
+      "PCK@0.05": 1.0,
+      "PCK@0.1": 1.0,
+      "OKS": 0.9754,
+      "Accuracy": 1.0,
+      "Precision": 1.0,
+      "Recall": 1.0,
+      "F1-Score": 1.0
+    },
+    "9BxaDnr8fX0_1350_png.rf.dbe7c5195146b84e760f61eff4f183c3.jpg": {
+      "PCK@0.05": 1.0,
+      "PCK@0.1": 1.0,
+      "OKS": 0.989,
+      "Accuracy": 1.0,
+      "Precision": 1.0,
+      "Recall": 1.0,
+      "F1-Score": 1.0
+    },
+    "9BxaDnr8fX0_4200_png.rf.02f3cf44e049071ced473b28fb6ce349.jpg": {
+      "PCK@0.05": 1.0,
+      "PCK@0.1": 1.0,
+      "OKS": 0.971,
+      "Accuracy": 1.0,
+      "Precision": 1.0,
+      "Recall": 1.0,
+      "F1-Score": 1.0
+    },
+    "9Tpef3_abKU_1550_png.rf.58935111c0b585a41a53224f1aad691d.jpg": {
+      "PCK@0.05": 1.0,
+      "PCK@0.1": 1.0,
+      "OKS": 0.9878,
+      "Accuracy": 1.0,
+      "Precision": 1.0,
+      "Recall": 1.0,
+      "F1-Score": 1.0
+    },
+    "_22eJvtP_lc_1900_png.rf.8528c191551635912178dfddb39f1543.jpg": {
+      "PCK@0.05": 1.0,
+      "PCK@0.1": 1.0,
+      "OKS": 0.9863,
+      "Accuracy": 1.0,
+      "Precision": 1.0,
+      "Recall": 1.0,
+      "F1-Score": 1.0
+    },
+    "ADImtY7vtrM_950_png.rf.be7ec17399c4674a11ff39ad6e4993ca.jpg": {
+      "PCK@0.05": 1.0,
+      "PCK@0.1": 1.0,
+      "OKS": 0.9272,
+      "Accuracy": 1.0,
+      "Precision": 1.0,
+      "Recall": 1.0,
+      "F1-Score": 1.0
+    },
+    "ANPF-QPUe70_1500_png.rf.0bd449213617988baa731740083c053d.jpg": {
+      "PCK@0.05": 0.6429,
+      "PCK@0.1": 1.0,
+      "OKS": 0.666,
+      "Accuracy": 0.4737,
+      "Precision": 0.6429,
+      "Recall": 0.6429,
+      "F1-Score": 0.6429
+    },
+    "BTrRo-myrc8_1900_png.rf.58505a82a9a0a789e286bed2cb2e8a18.jpg": {
+      "PCK@0.05": 1.0,
+      "PCK@0.1": 1.0,
+      "OKS": 0.9458,
+      "Accuracy": 1.0,
+      "Precision": 1.0,
+      "Recall": 1.0,
+      "F1-Score": 1.0
+    },
+    "BTrRo-myrc8_550_png.rf.22ccfe3f3ec9a99c0686d3a36c09ee8d.jpg": {
+      "PCK@0.05": 1.0,
+      "PCK@0.1": 1.0,
+      "OKS": 0.9798,
+      "Accuracy": 1.0,
+      "Precision": 1.0,
+      "Recall": 1.0,
+      "F1-Score": 1.0
+    },
+    "chVcFbytWqE_250_png.rf.34b5e5b614fe1393efa03360a3dba45f.jpg": {
+      "PCK@0.05": 1.0,
+      "PCK@0.1": 1.0,
+      "OKS": 0.9557,
+      "Accuracy": 1.0,
+      "Precision": 1.0,
+      "Recall": 1.0,
+      "F1-Score": 1.0
+    },
+    "e3vo1xfLnOg_450_png.rf.d15eb7b11d3761897d90be57a43b508a.jpg": {
+      "PCK@0.05": 1.0,
+      "PCK@0.1": 1.0,
+      "OKS": 0.9206,
+      "Accuracy": 1.0,
+      "Precision": 1.0,
+      "Recall": 1.0,
+      "F1-Score": 1.0
+    },
+    "G749JgIp_A0_1750_png.rf.56c912232e502e9b93fb8993267d78c1.jpg": {
+      "PCK@0.05": 1.0,
+      "PCK@0.1": 1.0,
+      "OKS": 0.9409,
+      "Accuracy": 1.0,
+      "Precision": 1.0,
+      "Recall": 1.0,
+      "F1-Score": 1.0
+    },
+    "G749JgIp_A0_2700_png.rf.cd6054d2b14f0df292bc4a65e02df3d5.jpg": {
+      "PCK@0.05": 1.0,
+      "PCK@0.1": 1.0,
+      "OKS": 0.9604,
+      "Accuracy": 1.0,
+      "Precision": 1.0,
+      "Recall": 1.0,
+      "F1-Score": 1.0
+    },
+    "g7BL0DU36Sg_300_png.rf.27d21906f46658a12e240489fb4458e1.jpg": {
+      "PCK@0.05": 1.0,
+      "PCK@0.1": 1.0,
+      "OKS": 0.9721,
+      "Accuracy": 1.0,
+      "Precision": 1.0,
+      "Recall": 1.0,
+      "F1-Score": 1.0
+    },
+    "GHwJBO7cXUs_1100_png.rf.d3779e5d2a93ef8299baec9f2b7373fd.jpg": {
+      "PCK@0.05": 1.0,
+      "PCK@0.1": 1.0,
+      "OKS": 0.9878,
+      "Accuracy": 1.0,
+      "Precision": 1.0,
+      "Recall": 1.0,
+      "F1-Score": 1.0
+    },
+    "GyrOZ9qF2O4_1800_png.rf.deb026e47887a941edd53ecc591b55fd.jpg": {
+      "PCK@0.05": 1.0,
+      "PCK@0.1": 1.0,
+      "OKS": 0.9926,
+      "Accuracy": 1.0,
+      "Precision": 1.0,
+      "Recall": 1.0,
+      "F1-Score": 1.0
+    },
+    "HF8ZA2maj3E_1050_png.rf.fd93afeedf0485f85b22231d0ef47c4b.jpg": {
+      "PCK@0.05": 1.0,
+      "PCK@0.1": 1.0,
+      "OKS": 0.9909,
+      "Accuracy": 1.0,
+      "Precision": 1.0,
+      "Recall": 1.0,
+      "F1-Score": 1.0
+    },
+    "j5msizaOo1s_1600_png.rf.2465a2edfa7baf2cc95fb15808e120fc.jpg": {
+      "PCK@0.05": 1.0,
+      "PCK@0.1": 1.0,
+      "OKS": 0.9883,
+      "Accuracy": 1.0,
+      "Precision": 1.0,
+      "Recall": 1.0,
+      "F1-Score": 1.0
+    },
+    "kGD8k0nVxKM_150_png.rf.328bc5d33a5c29dd664b3ac0ff1bad52.jpg": {
+      "PCK@0.05": 1.0,
+      "PCK@0.1": 1.0,
+      "OKS": 0.99,
+      "Accuracy": 1.0,
+      "Precision": 1.0,
+      "Recall": 1.0,
+      "F1-Score": 1.0
+    },
+    "KnCTZtAvp78_550_png.rf.a356741d8a71c8c40511905493e3db33.jpg": {
+      "PCK@0.05": 1.0,
+      "PCK@0.1": 1.0,
+      "OKS": 0.9769,
+      "Accuracy": 1.0,
+      "Precision": 1.0,
+      "Recall": 1.0,
+      "F1-Score": 1.0
+    },
+    "KnCTZtAvp78_800_png.rf.a5a6cb10d048123aafb85ba15c5bb388.jpg": {
+      "PCK@0.05": 1.0,
+      "PCK@0.1": 1.0,
+      "OKS": 0.9829,
+      "Accuracy": 1.0,
+      "Precision": 1.0,
+      "Recall": 1.0,
+      "F1-Score": 1.0
+    },
+    "nfFe_F5ioag_1650_png.rf.05bd2ab99c191d7f358ce3e8a2da46f4.jpg": {
+      "PCK@0.05": 1.0,
+      "PCK@0.1": 1.0,
+      "OKS": 0.994,
+      "Accuracy": 1.0,
+      "Precision": 1.0,
+      "Recall": 1.0,
+      "F1-Score": 1.0
+    },
+    "Ox-_53Qq3-s_950_png.rf.0b46643e7c0a22c454244bd16ae61a50.jpg": {
+      "PCK@0.05": 0.9286,
+      "PCK@0.1": 1.0,
+      "OKS": 0.8358,
+      "Accuracy": 0.8667,
+      "Precision": 0.9286,
+      "Recall": 0.9286,
+      "F1-Score": 0.9286
+    },
+    "p2NkaqziCsQ_2350_png.rf.0f943d198dc99d5f3693d9a5e2da3e24.jpg": {
+      "PCK@0.05": 1.0,
+      "PCK@0.1": 1.0,
+      "OKS": 0.9731,
+      "Accuracy": 1.0,
+      "Precision": 1.0,
+      "Recall": 1.0,
+      "F1-Score": 1.0
+    },
+    "pE_75IXh0O8_2700_png.rf.eae848d8be95eb23bca683b694da9db1.jpg": {
+      "PCK@0.05": 1.0,
+      "PCK@0.1": 1.0,
+      "OKS": 0.9651,
+      "Accuracy": 1.0,
+      "Precision": 1.0,
+      "Recall": 1.0,
+      "F1-Score": 1.0
+    },
+    "pE_75IXh0O8_50_png.rf.955139b5db0969c68ca5ae4d85414aff.jpg": {
+      "PCK@0.05": 1.0,
+      "PCK@0.1": 1.0,
+      "OKS": 0.8325,
+      "Accuracy": 1.0,
+      "Precision": 1.0,
+      "Recall": 1.0,
+      "F1-Score": 1.0
+    },
+    "pE_75IXh0O8_600_png.rf.0e34d05abb34289cc64a34eca581e546.jpg": {
+      "PCK@0.05": 1.0,
+      "PCK@0.1": 1.0,
+      "OKS": 0.9678,
+      "Accuracy": 1.0,
+      "Precision": 1.0,
+      "Recall": 1.0,
+      "F1-Score": 1.0
+    },
+    "PlUC2vcAfCQ_1900_png.rf.7704779d9f129d12645442f49c5c6865.jpg": {
+      "PCK@0.05": 1.0,
+      "PCK@0.1": 1.0,
+      "OKS": 0.9443,
+      "Accuracy": 0.8571,
+      "Precision": 0.8571,
+      "Recall": 1.0,
+      "F1-Score": 0.9231
+    },
+    "poWmig0gN3c_2350_png.rf.83cec2696db9598b4aa97897f4a8f923.jpg": {
+      "PCK@0.05": 1.0,
+      "PCK@0.1": 1.0,
+      "OKS": 0.8592,
+      "Accuracy": 1.0,
+      "Precision": 1.0,
+      "Recall": 1.0,
+      "F1-Score": 1.0
+    },
+    "Q4orRC41Pj0_1550_png.rf.6628e9ec3d7b873c324f444474f8d713.jpg": {
+      "PCK@0.05": 1.0,
+      "PCK@0.1": 1.0,
+      "OKS": 0.9952,
+      "Accuracy": 1.0,
+      "Precision": 1.0,
+      "Recall": 1.0,
+      "F1-Score": 1.0
+    },
+    "Q4orRC41Pj0_3350_png.rf.46d428e7cfc7ee32abde451041dc3679.jpg": {
+      "PCK@0.05": 1.0,
+      "PCK@0.1": 1.0,
+      "OKS": 0.9885,
+      "Accuracy": 1.0,
+      "Precision": 1.0,
+      "Recall": 1.0,
+      "F1-Score": 1.0
+    },
+    "RxMA1YEocdk_150_png.rf.edb2f1e7d799fc2661d5de32174013e8.jpg": {
+      "PCK@0.05": 1.0,
+      "PCK@0.1": 1.0,
+      "OKS": 0.9889,
+      "Accuracy": 1.0,
+      "Precision": 1.0,
+      "Recall": 1.0,
+      "F1-Score": 1.0
+    },
+    "T9S8fQHtV7E_50_png.rf.7c5862f68255a5f192755943b0aa86f9.jpg": {
+      "PCK@0.05": 1.0,
+      "PCK@0.1": 1.0,
+      "OKS": 0.9826,
+      "Accuracy": 1.0,
+      "Precision": 1.0,
+      "Recall": 1.0,
+      "F1-Score": 1.0
+    },
+    "u7AaTefG19M_200_png.rf.69f95bd6575ec1188860954f16a26dc1.jpg": {
+      "PCK@0.05": 1.0,
+      "PCK@0.1": 1.0,
+      "OKS": 0.9675,
+      "Accuracy": 0.8571,
+      "Precision": 0.8571,
+      "Recall": 1.0,
+      "F1-Score": 0.9231
+    },
+    "UZUF1qO10F4_900_png.rf.67b831714057667454ccce0eb163fb99.jpg": {
+      "PCK@0.05": 1.0,
+      "PCK@0.1": 1.0,
+      "OKS": 0.9799,
+      "Accuracy": 1.0,
+      "Precision": 1.0,
+      "Recall": 1.0,
+      "F1-Score": 1.0
+    },
+    "vdLe8FL8t-g_200_png.rf.7bfd90f3cc1d1c219d494883d2735bb6.jpg": {
+      "PCK@0.05": 1.0,
+      "PCK@0.1": 1.0,
+      "OKS": 0.9806,
+      "Accuracy": 1.0,
+      "Precision": 1.0,
+      "Recall": 1.0,
+      "F1-Score": 1.0
+    },
+    "WbM-v_vc4eQ_2100_png.rf.75634da0289459f311f0903325228430.jpg": {
+      "PCK@0.05": 1.0,
+      "PCK@0.1": 1.0,
+      "OKS": 0.9855,
+      "Accuracy": 1.0,
+      "Precision": 1.0,
+      "Recall": 1.0,
+      "F1-Score": 1.0
+    },
+    "wdltxaGOGYk_1650_png.rf.ef175116aad1b4fd86c798b624871288.jpg": {
+      "PCK@0.05": 1.0,
+      "PCK@0.1": 1.0,
+      "OKS": 0.9913,
+      "Accuracy": 1.0,
+      "Precision": 1.0,
+      "Recall": 1.0,
+      "F1-Score": 1.0
+    },
+    "x9vDVPmlXZ8_650_png.rf.5a8816eaf293d67f7a7267d9332f5a8f.jpg": {
+      "PCK@0.05": 0.0,
+      "PCK@0.1": 0.0,
+      "OKS": 0.0,
+      "Accuracy": 0.0,
+      "Precision": 0.0,
+      "Recall": 0.0,
+      "F1-Score": 0.0
+    },
+    "ZOlj6B5ecz0_250_png.rf.887f6ec46ae16f7af1c2a5f0a838ab48.jpg": {
+      "PCK@0.05": 1.0,
+      "PCK@0.1": 1.0,
+      "OKS": 0.9809,
+      "Accuracy": 1.0,
+      "Precision": 1.0,
+      "Recall": 1.0,
+      "F1-Score": 1.0
+    },
+    "ZtlEGsl9Odo_100_png.rf.f5d53a64b6bc772905a56d57ebf5a0ea.jpg": {
+      "PCK@0.05": 1.0,
+      "PCK@0.1": 1.0,
+      "OKS": 0.9826,
+      "Accuracy": 1.0,
+      "Precision": 1.0,
+      "Recall": 1.0,
+      "F1-Score": 1.0
+    },
+    "zYYHJY0NsUA_50_png.rf.17fbb4b612ba5b702767f74fc4453136.jpg": {
+      "PCK@0.05": 1.0,
+      "PCK@0.1": 1.0,
+      "OKS": 0.986,
+      "Accuracy": 1.0,
+      "Precision": 1.0,
+      "Recall": 1.0,
+      "F1-Score": 1.0
+    },
+    "TOTAL": {
+      "PCK@0.05": 0.973,
+      "PCK@0.1": 0.9811,
+      "OKS": 0.9433,
+      "Accuracy": 0.9637,
+      "Precision": 0.9835,
+      "Recall": 0.9795,
+      "F1-Score": 0.9815
+    }
+  }
+}
