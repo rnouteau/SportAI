@@ -1,3 +1,4 @@
+analysis: pipeline.objects.tennis.TennisAnalysis
 models:
   - name: pipeline.models.tennis.TennisPlayerModel
     config:

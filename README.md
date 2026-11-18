@@ -90,6 +90,7 @@ SportAI/
 │   │   ├── test_ball_metrics_properties.py
 │   │   ├── test_player_detection_metrics.py
 │   │   ├── test_court_detection_metrics.py
+│   │   ├── test_run_pipeline_analysis.py
 │   │   └── test_baseline.py
 │   ├── integration/                  # Medium tests (@pytest.mark.integration)
 │   │   ├── test_video_reader.py
@@ -105,10 +106,12 @@ SportAI/
 │   │   ├── config_test_tennis_accuracy_ball_detection.yaml
 │   │   ├── config_test_tennis_accuracy_players_detection.yaml
 │   │   └── config_test_tennis_accuracy_court_detection.yaml
-│   └── nrt/tennis/                   # Slow model NRT (@pytest.mark.nrt)
-│       ├── test_tennis_accuracy_ball_detection.py
-│       ├── test_tennis_accuracy_players_detection.py
-│       └── test_tennis_accuracy_court_detection.py
+│   └── nrt/                          # Slow model NRT (@pytest.mark.nrt)
+│       ├── harness.py                # Shared prepare_config / report / assert vs baseline
+│       └── tennis/
+│           ├── test_tennis_accuracy_ball_detection.py
+│           ├── test_tennis_accuracy_players_detection.py
+│           └── test_tennis_accuracy_court_detection.py
 ├── models/                           # Local pipeline / annotator weights (gitignored)
 │   ├── based_models/                 # e.g. yolo11s.pt for player annotator pre-label
 │   └── trained_models/               # Optional stable copies for pipeline `weight:` paths
@@ -238,7 +241,7 @@ CLI / test
 run_pipeline(sport, video_path, config)
    │
    ├─ VideoReader(video_path)
-   ├─ TennisAnalysis.from_video(...)   → empty frames: ball=null, players=[]
+   ├─ load_class(config["analysis"]).from_video(...)   → empty frames
    │
    ├─ for each model in config["models"]:
    │      load_class(name)(config)
@@ -443,6 +446,7 @@ Stats are listed in the YAML under `stats:` the same way as models (the loop in 
 ### Production config — `configs/tennis_config.yaml`
 
 ```yaml
+analysis: pipeline.objects.tennis.TennisAnalysis
 models:
   - name: pipeline.models.tennis.TennisBallModel
     config:
@@ -463,6 +467,7 @@ outputs:
 
 | Key | Meaning |
 |-----|---------|
+| `analysis` | Fully-qualified `Analysis` class path (required; loaded like models) |
 | `models[].name` | Fully-qualified Python class path |
 | `models[].config` | Passed to `Model.__init__` |
 | `outputs.path` | Where `save_json` writes the analysis |
@@ -474,6 +479,7 @@ Each suite extends the production shape with dataset / weights resolution and re
 **Ball** — `config_test_tennis_accuracy_ball_detection.yaml`:
 
 ```yaml
+analysis: pipeline.objects.tennis.TennisAnalysis
 models:
   - name: pipeline.models.tennis.TennisBallModel
     config:
@@ -499,6 +505,7 @@ regression:
 **Players** — `config_test_tennis_accuracy_players_detection.yaml`:
 
 ```yaml
+analysis: pipeline.objects.tennis.TennisAnalysis
 models:
   - name: pipeline.models.tennis.TennisPlayerModel
     config:
@@ -875,6 +882,7 @@ These never open a video or load TorchScript. Data is built in memory (`dict`, `
 | `tests/unit/test_player_detection_metrics.py` | IoU / greedy match (TP if IoU ≥ 0.5 else FP) + mAP helpers |
 | `tests/unit/test_court_detection_metrics.py` | PCK / OKS / per-id keypoint TP-FP-FN, `parse_yolo_pose_label`, `discover_image_label_pairs` |
 | `tests/unit/test_baseline.py` | `build_baseline`, save/load, `compare_to_baseline` cases |
+| `tests/unit/test_run_pipeline_analysis.py` | Config `analysis:` required; FQCN loads `TennisAnalysis` |
 
 Shared evaluators live under `tests/evaluation/` (`ball_detection_evaluation.py`, `player_detection_evaluation.py`, `court_detection_evaluation.py`) so unit, integration and NRT tests reuse the same metric code without importing the NRT entrypoints.
 
@@ -1271,15 +1279,16 @@ No change to `run.py` for a new *tennis* model (analysis factory is still tennis
 ### Add a new sport
 
 1. Add `pipeline/objects/<sport>/` with `<Sport>Analysis`, `<Sport>Frame`, and domain objects.
-2. Register creation in `run_pipeline` (or, better, load the analysis class from config the same way models are loaded).
+2. Point `analysis:` in `configs/<sport>_config.yaml` at the new Analysis FQCN (`run_pipeline` loads it like models — no edit to `run.py`).
 3. Add `pipeline/models/<sport>/` and `pipeline/stats/<sport>/`.
-4. Add `configs/<sport>_config.yaml` and a test suite under `tests/nrt/<sport>/`.
+4. Add a test suite under `tests/nrt/<sport>/` (reuse [`tests/nrt/harness.py`](tests/nrt/harness.py)).
 
 ### Add a new NRT suite
 
-1. Copy the tennis NRT config / test / baseline pattern under `tests/configs/nrt/`, `tests/nrt/`, `tests/baselines/`.
-2. Wire CI: HF cache `hashFiles`, step summary, artefact paths, and `publish-wiki` / `render_wiki_home.py` suite inputs (today each suite is listed explicitly — there is no auto matrix yet).
-3. Point `dataset` / `weights` / `regression.baseline` at the new assets; regenerate the baseline on **CPU** (`SPORTAI_DEVICE=cpu`) to match CI.
+1. Add config / baseline under `tests/configs/nrt/` and `tests/baselines/`.
+2. Add a thin test under `tests/nrt/<sport>/` that calls the evaluator + `assert_vs_baseline` from [`tests/nrt/harness.py`](tests/nrt/harness.py) (suite-specific `run_context` extras only).
+3. Wire CI: HF cache `hashFiles`, step summary, artefact paths, and `publish-wiki` / `render_wiki_home.py` suite inputs (today each suite is listed explicitly — there is no auto matrix yet).
+4. Regenerate the baseline on **CPU** (`SPORTAI_DEVICE=cpu`) to match CI.
 
 ---
 

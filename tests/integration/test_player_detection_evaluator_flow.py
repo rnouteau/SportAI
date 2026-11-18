@@ -36,6 +36,7 @@ def test_player_evaluator_match_and_compute_on_synthetic_frames(tmp_path: Path) 
     n_frames = 4
     video_path = make_synthetic_video(tmp_path / "clip.mp4", n_frames=n_frames)
     config = {
+        "analysis": "pipeline.objects.tennis.TennisAnalysis",
         "models": [
             {
                 "name": (

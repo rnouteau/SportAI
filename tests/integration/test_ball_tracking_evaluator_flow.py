@@ -40,6 +40,7 @@ def test_evaluator_match_and_compute_on_synthetic_frames(tmp_path: Path) -> None
     n_frames = 5
     video_path = make_synthetic_video(tmp_path / "clip.mp4", n_frames=n_frames)
     config = {
+        "analysis": "pipeline.objects.tennis.TennisAnalysis",
         "models": [
             {
                 "name": ("tests.integration.test_ball_tracking_evaluator_flow.FakeTennisBallModel"),

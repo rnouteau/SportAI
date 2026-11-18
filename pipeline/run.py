@@ -1,9 +1,10 @@
 import argparse
 import importlib
+from typing import cast
 
 from loguru import logger
 
-from pipeline.objects.tennis.tennis_analysis import TennisAnalysis
+from pipeline.objects.analysis import Analysis
 from pipeline.video_reader import VideoReader
 from utils import read_yaml
 
@@ -24,13 +25,16 @@ def run_pipeline(
         logger.error("Video path is empty")
         return None
 
-    video_reader = VideoReader(video_path)
+    analysis_path = config.get("analysis")
+    if not analysis_path or not isinstance(analysis_path, str):
+        raise ValueError(
+            "config must define 'analysis' as a fully-qualified class path "
+            "(e.g. pipeline.objects.tennis.TennisAnalysis)"
+        )
 
-    if sport == "tennis":
-        analysis = TennisAnalysis.from_video(video_reader, sport)
-    else:
-        logger.error(f"Sport {sport} not supported")
-        return None
+    video_reader = VideoReader(video_path)
+    analysis_cls = cast(type[Analysis], load_class(analysis_path))
+    analysis = analysis_cls.from_video(video_reader, sport)
 
     for model_cfg in config.get("models", []):
         model_name = model_cfg["name"]

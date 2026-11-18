@@ -25,6 +25,7 @@ class FakeTennisBallModel(Model[TennisAnalysis]):
 def test_run_pipeline_with_fake_model_writes_ball(tmp_path: Path) -> None:
     video_path = make_synthetic_video(tmp_path / "clip.mp4", n_frames=5)
     config = {
+        "analysis": "pipeline.objects.tennis.TennisAnalysis",
         "models": [
             {
                 "name": "tests.integration.test_run_pipeline_fake_model.FakeTennisBallModel",
@@ -49,6 +50,7 @@ def test_run_pipeline_returns_analysis_dict_shape(tmp_path: Path) -> None:
     n_frames = 4
     video_path = make_synthetic_video(tmp_path / "clip.mp4", n_frames=n_frames)
     config = {
+        "analysis": "pipeline.objects.tennis.TennisAnalysis",
         "models": [
             {
                 "name": "tests.integration.test_run_pipeline_fake_model.FakeTennisBallModel",
