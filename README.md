@@ -65,20 +65,20 @@ SportAI/
 │   ├── objects/                      # Typed views over the analysis JSON
 │   │   ├── analysis.py               # Analysis[FrameT] base
 │   │   ├── frame.py / ball.py / player_at_frame.py / homography.py
-│   │   ├── court_position.py / legs.py
+│   │   ├── court_schema.py           # CourtSchema ABC (H + image_to_court + distance)
+│   │   ├── position.py               # CourtPosition / ImagePosition
 │   │   └── tennis/
 │   │       ├── tennis_analysis.py
 │   │       ├── tennis_frame.py
 │   │       ├── tennis_ball.py
 │   │       ├── tennis_player_at_frame.py
 │   │       ├── tennis_homography.py
-│   │       ├── tennis_court_schema.py  # 14 ITF keypoints + edges (metres) — SSoT
-│   │       └── court_homography.py     # findHomography image↔court helpers
+│   │       └── tennis_court_schema.py  # TennisCourtSchema(CourtSchema): ITF + H
 │   └── stats/
 │       ├── stat.py                   # Abstract Stat[AnalysisT] base
 │       └── tennis/
-│           ├── example_stat.py
-│           └── legs_court.py         # Project player legs → CourtPosition
+│           └── example_stat.py       # (LegsCourt stat comes in a later step)
+
 
 ├── tests/
 │   ├── assets.py                     # Local files or Hugging Face download
@@ -448,7 +448,7 @@ File: `pipeline/models/tennis/tennis_court_model.py`
 1. Walk the video once via `video_reader.iter_frames()`.
 2. `YOLO.predict(..., classes=[0], stream=True, device=self.device)` (class `tennis court`).
 3. Keep the best instance by mean keypoint confidence; read `keypoints.xy` (14×2).
-4. Estimate `H` (image→metres) via `estimate_image_to_court` ; write `TennisHomography.create(pts, confs, matrix=…)`.
+4. Estimate `H` via `TENNIS_COURT.estimate_homography` ; set `homo.matrix` on a `TennisHomography`.
 
 NRT court accuracy uses **still images + YOLO-pose labels** via `CourtDetectionEvaluator` (not `run_pipeline` on video). Pipeline court inference on video is what fills `frame.homography` in production runs.
 
@@ -735,7 +735,7 @@ frame,class_id,x0,y0,x1,y1
 
 ### Court annotator — `tools/court_annotator.py`
 
-GUI to label **14 ITF tennis court keypoints** on a still image. Schema / flip map live only in [`pipeline/objects/tennis/tennis_court_schema.py`](pipeline/objects/tennis/tennis_court_schema.py) (shared with train prepare/import and NRT eval). Named points + fixed edges; `v` projects the model court via OpenCV homography (`estimate_court_to_image`).
+GUI to label **14 ITF tennis court keypoints** on a still image. Schema / flip map live only in [`pipeline/objects/tennis/tennis_court_schema.py`](pipeline/objects/tennis/tennis_court_schema.py) (shared with train prepare/import and NRT eval). Named points + fixed edges; `v` projects via `TENNIS_COURT.estimate_court_to_image`.
 
 ```bash
 python tools/court_annotator.py --image_path path/to/frame.png
@@ -925,7 +925,7 @@ These never open a video or load TorchScript. Data is built in memory (`dict`, `
 | `tests/unit/test_player_detection_metrics.py` | IoU / greedy match (TP if IoU ≥ 0.5 else FP) + mAP helpers |
 | `tests/unit/test_court_detection_metrics.py` | PCK / OKS / per-id keypoint TP-FP-FN, `parse_yolo_pose_label`, `discover_image_label_pairs` |
 | `tests/unit/test_court_yolo.py` | Shared YOLO-pose encode/decode (`tools/court_yolo.py`) |
-| `tests/unit/test_court_homography.py` | `estimate_image_to_court`, `legs` / `CourtPosition`, Stat `LegsCourt` |
+| `tests/unit/test_court_homography.py` | `TennisCourtSchema` H / `image_to_court` / `.distance` |
 | `tests/unit/test_resolve_device.py` | `SPORTAI_DEVICE` override + CUDA→CPU fallback |
 | `tests/unit/test_baseline.py` | `build_baseline`, save/load, `compare_to_baseline` cases |
 | `tests/unit/test_run_pipeline_analysis.py` | Config `analysis:` required; FQCN loads `TennisAnalysis` |

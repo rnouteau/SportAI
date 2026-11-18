@@ -20,12 +20,12 @@ for _path in (_REPO_ROOT, _TOOLS_DIR):
         sys.path.insert(0, str(_path))
 
 from court_yolo import load_pose_label_points, write_pose_label  # noqa: E402
-from pipeline.objects.tennis.court_homography import estimate_court_to_image  # noqa: E402
 from pipeline.objects.tennis.tennis_court_schema import (  # noqa: E402
     EDGES,
     N_POINTS,
     POINT_BY_ID,
     POINTS,
+    TENNIS_COURT,
     model_xy,
     overlay_segments_m,
 )
@@ -260,7 +260,7 @@ class CourtAnnotatorApplication:
 
         pids = sorted(self.annotations)
         image_pts = [self.annotations[pid] for pid in pids]
-        h_mat = estimate_court_to_image(image_pts, pids)
+        h_mat = TENNIS_COURT.estimate_court_to_image(image_pts, pids)
         if h_mat is None:
             logger.error("Homography estimation failed")
             return
