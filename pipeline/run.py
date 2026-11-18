@@ -14,6 +14,19 @@ def load_class(path: str) -> type:
     return getattr(importlib.import_module(module_name), class_name)
 
 
+def _overlay_video_path(config: dict) -> str | None:
+    outputs = config.get("outputs") or {}
+    if not isinstance(outputs, dict):
+        return None
+    video = outputs.get("video")
+    if not isinstance(video, dict):
+        return None
+    path = video.get("path")
+    if isinstance(path, str) and path.strip():
+        return path.strip()
+    return None
+
+
 def run_pipeline(
     sport: str,
     video_path: str,
@@ -53,6 +66,19 @@ def run_pipeline(
         except Exception as e:
             logger.exception(f"Error occurred while running stat {stat_name}: {e}")
             raise
+
+    if not test:
+        overlay_path = _overlay_video_path(config)
+        if overlay_path and sport == "tennis":
+            from pipeline.objects.tennis.tennis_analysis import TennisAnalysis
+            from pipeline.render.tennis_overlay import render_overlay_video
+
+            if isinstance(analysis, TennisAnalysis):
+                try:
+                    render_overlay_video(video_reader, analysis, overlay_path)
+                except Exception as e:
+                    logger.exception(f"Error writing overlay video: {e}")
+                    raise
 
     video_reader.release()
 

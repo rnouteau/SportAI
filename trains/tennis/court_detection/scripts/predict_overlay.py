@@ -15,6 +15,7 @@ REPO_ROOT = Path(__file__).resolve().parents[4]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
+from pipeline.models.tennis.tennis_court_model import predict_court_keypoints  # noqa: E402
 from pipeline.objects.tennis.tennis_court_schema import (  # noqa: E402
     N_POINTS,
     POINT_BY_ID,
@@ -39,26 +40,26 @@ def imwrite_unicode(path: Path, image: np.ndarray) -> None:
     buf.tofile(str(path))
 
 
-def extract_keypoints(result) -> dict[int, tuple[float, float]]:
-    """Take the highest-confidence court instance keypoints (pixel coords)."""
-    if result.keypoints is None or len(result.keypoints) == 0:
+def extract_keypoints(
+    model: YOLO,
+    image: np.ndarray,
+    *,
+    device: str = "cpu",
+    imgsz: int = 640,
+    stretch: bool = True,
+    min_conf: float = 0.2,
+) -> dict[int, tuple[float, float]]:
+    """Best court instance keypoints in image pixels (same preprocessing as the pipeline)."""
+    prediction = predict_court_keypoints(
+        model, image, device=device, input_size=(imgsz, imgsz), stretch=stretch
+    )
+    if prediction is None:
         return {}
-    kpts = result.keypoints
-    # xy: (n, K, 2), conf optional
-    xy = kpts.xy.cpu().numpy()
-    if xy.size == 0:
-        return {}
-    best = 0
-    if result.boxes is not None and len(result.boxes) > 0 and result.boxes.conf is not None:
-        best = int(result.boxes.conf.cpu().numpy().argmax())
-    pts = xy[best]
+    pts, confs = prediction
     out: dict[int, tuple[float, float]] = {}
-    conf = None
-    if kpts.conf is not None:
-        conf = kpts.conf.cpu().numpy()[best]
-    for pid in range(min(N_POINTS, pts.shape[0])):
-        x, y = float(pts[pid, 0]), float(pts[pid, 1])
-        if conf is not None and float(conf[pid]) < 0.2:
+    for pid in range(min(N_POINTS, len(pts))):
+        x, y = float(pts[pid][0]), float(pts[pid][1])
+        if float(confs[pid]) < min_conf:
             continue
         if x <= 0 and y <= 0:
             continue
@@ -119,6 +120,12 @@ def main() -> None:
         help="Optional output image path (default: <stem>_court_pred.png next to input)",
     )
     parser.add_argument("--device", type=str, default="cpu")
+    parser.add_argument("--imgsz", type=int, default=640, help="Training image size")
+    parser.add_argument(
+        "--no-stretch",
+        action="store_true",
+        help="Letterbox instead of stretching (only for a model trained on letterboxed images)",
+    )
     parser.add_argument("--show", action="store_true", help="Open an OpenCV window")
     args = parser.parse_args()
 
@@ -129,10 +136,9 @@ def main() -> None:
 
     image = imread_unicode(image_path)
     model = YOLO(str(weights))
-    results = model.predict(source=image, device=args.device, verbose=False)
-    if not results:
-        raise RuntimeError("No prediction results")
-    points = extract_keypoints(results[0])
+    points = extract_keypoints(
+        model, image, device=args.device, imgsz=args.imgsz, stretch=not args.no_stretch
+    )
     logger.info("Detected {}/{} keypoints", len(points), N_POINTS)
 
     overlay = draw_homography_overlay(image, points)

@@ -1,7 +1,7 @@
 models:
   - name: pipeline.models.tennis.TennisCourtModel
     config:
-      device: "cuda"
+      device: "cpu"
       weight: "./models/TENNIS_COURT_MODEL_18_11_2026.pt"
 dataset:
   local_dir: ./datasets/tennis/court_detection/test

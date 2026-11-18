@@ -2,7 +2,7 @@ analysis: pipeline.objects.tennis.TennisAnalysis
 models:
   - name: pipeline.models.tennis.TennisBallModel
     config:
-      device: "cuda"
+      device: "cpu"
       threshold: 0.5
       weight: "./models/TENNIS_BALL_MODEL_04_11_2026.pt"
 dataset:

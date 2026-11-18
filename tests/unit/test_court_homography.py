@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import cv2
+import numpy as np
 import pytest
 
 from pipeline.objects.player_at_frame import PlayerAtFrame
@@ -141,3 +143,49 @@ def test_tennis_legs_court_stat() -> None:
     assert player.legs.court.distance == pytest.approx(5.0, abs=1e-2)
     assert "stats" not in analysis.data
     assert player.data["legs"]["court"]["x"] == pytest.approx(3.0, abs=1e-2)
+
+
+def _broadcast_view_keypoints() -> tuple[list[list[float]], np.ndarray]:
+    """Project the 14 court points through a realistic broadcast court→image homography."""
+    schema = TennisCourtSchema()
+    court_corners = np.array(
+        [[-5.485, 11.885], [5.485, 11.885], [-5.485, -11.885], [5.485, -11.885]],
+        dtype=np.float64,
+    )
+    image_corners = np.array([[650, 315], [1250, 315], [410, 770], [1495, 775]], dtype=np.float64)
+    h_court_to_img = cv2.getPerspectiveTransform(
+        court_corners.astype(np.float32), image_corners.astype(np.float32)
+    ).astype(np.float64)
+    model_pts = np.array([schema.model_xy(i) for i in range(N_POINTS)], dtype=np.float64)
+    img_pts = cv2.perspectiveTransform(model_pts.reshape(-1, 1, 2), h_court_to_img).reshape(-1, 2)
+    return img_pts.tolist(), h_court_to_img
+
+
+@pytest.mark.unit
+def test_estimate_homography_ransac_rejects_pixel_outlier() -> None:
+    """One keypoint 60 px off must be rejected (threshold in pixels, not metres)."""
+    schema = TennisCourtSchema()
+    keypoints, _ = _broadcast_view_keypoints()
+    keypoints[8] = [keypoints[8][0] + 60.0, keypoints[8][1] - 40.0]  # near T, badly predicted
+
+    h_mat = schema.estimate_homography(keypoints, [1.0] * N_POINTS, ransac_reproj_threshold=5.0)
+    assert h_mat is not None
+
+    clean, _ = _broadcast_view_keypoints()
+    projected = schema.image_to_court(h_mat, clean)
+    for pid in range(N_POINTS):
+        mx, my = model_xy(pid)
+        assert projected[pid][0] == pytest.approx(mx, abs=0.05)
+        assert projected[pid][1] == pytest.approx(my, abs=0.05)
+
+
+@pytest.mark.unit
+def test_estimate_homography_is_image_to_court_and_normalised() -> None:
+    schema = TennisCourtSchema()
+    keypoints, h_court_to_img = _broadcast_view_keypoints()
+    h_mat = schema.estimate_homography(keypoints, [1.0] * N_POINTS)
+    assert h_mat is not None
+    assert h_mat[2, 2] == pytest.approx(1.0)
+    expected = np.linalg.inv(h_court_to_img)
+    expected /= expected[2, 2]
+    assert np.allclose(h_mat, expected, atol=1e-6)

@@ -13,8 +13,17 @@ models:
     config:
         device: "cuda"
         weight: "./models/TENNIS_COURT_MODEL_18_11_2026.pt"
+        # Dataset exported as stretched 640x640: reproduce it at inference.
+        input_size: 640
+        stretch_input: true
+        min_conf: 0.3
+        ransac_px: 5.0              # pixels
+        smoothing_window: 5         # frames (1 = no smoothing)
+        smoothing_reset_ratio: 0.02 # scene-cut reset, fraction of frame diagonal
 stats:
   - name: pipeline.stats.tennis.TennisLegsCourtStat
     config: {}
 outputs:
   path: ./outputs/tennis/stats.json
+  video:
+    path: ./outputs/tennis/overlay.mp4

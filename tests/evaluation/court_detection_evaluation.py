@@ -8,9 +8,7 @@ from pathlib import Path
 import cv2
 import numpy as np
 import pandas as pd
-import torch
 from loguru import logger
-from ultralytics.engine.results import Results
 
 from pipeline.models.tennis.tennis_court_model import TennisCourtModel
 from pipeline.objects.tennis.tennis_court_schema import N_POINTS
@@ -187,32 +185,11 @@ def predict_keypoints(
     model: TennisCourtModel,
     image_bgr: np.ndarray,
 ) -> list[list[float]] | None:
-    """Run Ultralytics pose and return best-instance keypoints as ``[[x,y], ...]``."""
-    if model.model is None:
+    """Best-instance keypoints ``[[x,y], ...]`` in image pixels (same preprocessing as the pipeline)."""
+    prediction = model.predict_keypoints(image_bgr)
+    if prediction is None:
         return None
-    results = model.model.predict(
-        image_bgr,
-        classes=[0],
-        stream=False,
-        verbose=False,
-        device=model.device,
-    )
-    if not results:
-        return None
-    result = results[0]
-    if not isinstance(result, Results):
-        return None
-    keypoints = result.keypoints
-    if keypoints is None or len(keypoints) == 0:
-        return None
-    if keypoints.conf is None or keypoints.xy is None:
-        return None
-    xy = torch.as_tensor(keypoints.xy).detach().cpu()
-    conf = torch.as_tensor(keypoints.conf).detach().cpu()
-    if xy.ndim != 3 or conf.ndim != 2 or xy.shape[0] == 0:
-        return None
-    best = int(conf.mean(dim=1).argmax().item())
-    return xy[best].tolist()
+    return prediction[0]
 
 
 class CourtDetectionEvaluator:

@@ -30,7 +30,12 @@ class CourtSchema(ABC):
         min_conf: float = 0.3,
         ransac_reproj_threshold: float = 5.0,
     ) -> np.ndarray | None:
-        """Estimate H mapping image pixels → court metres."""
+        """Estimate H mapping image pixels → court metres.
+
+        RANSAC runs in the court→image direction so ``ransac_reproj_threshold`` is in
+        **pixels** (a threshold in the image→court direction would be in metres, and
+        5 m rejects nothing). The result is inverted to keep the image→court convention.
+        """
         src: list[list[float]] = []
         dst: list[list[float]] = []
         for i, pt in enumerate(keypoints):
@@ -47,13 +52,21 @@ class CourtSchema(ABC):
         if len(src) < min_points:
             return None
 
-        h_mat, _mask = cv2.findHomography(
-            np.asarray(src, dtype=np.float64),
+        h_court_to_img, _mask = cv2.findHomography(
             np.asarray(dst, dtype=np.float64),
+            np.asarray(src, dtype=np.float64),
             method=cv2.RANSAC,
             ransacReprojThreshold=ransac_reproj_threshold,
         )
-        return h_mat
+        if h_court_to_img is None:
+            return None
+        try:
+            h_img_to_court = np.linalg.inv(h_court_to_img)
+        except np.linalg.LinAlgError:
+            return None
+        if abs(h_img_to_court[2, 2]) > 1e-12:
+            h_img_to_court = h_img_to_court / h_img_to_court[2, 2]
+        return h_img_to_court
 
     def estimate_court_to_image(
         self,

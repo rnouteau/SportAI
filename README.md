@@ -504,6 +504,8 @@ stats:
     config: {}
 outputs:
   path: ./outputs/tennis/stats.json
+  video:
+    path: ./outputs/tennis/overlay.mp4   # omit / null → JSON only
 ```
 
 | Key | Meaning |
@@ -513,6 +515,7 @@ outputs:
 | `models[].config` | Passed to `Model.__init__` |
 | `stats[].name` | Optional FQCN stats (same load pattern as models; run before release) |
 | `outputs.path` | Where `save_json` writes the analysis |
+| `outputs.video.path` | Optional annotated MP4 (ball, players/bbox+legs, court). Absent / empty → JSON only |
 
 ### NRT configs — `tests/configs/nrt/tennis/`
 
@@ -664,7 +667,7 @@ python -m pipeline.run \
   --config configs/tennis_config.yaml
 ```
 
-Output: `outputs/tennis/stats.json` (path from the config).
+Output: `outputs/tennis/stats.json` plus optional `outputs/tennis/overlay.mp4` when `outputs.video.path` is set (ball circle + conf, player bboxes, legs point + court distance, court lines via H⁻¹ or keypoint crosses).
 
 Useful checks after a run:
 
