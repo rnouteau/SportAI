@@ -1,8 +1,9 @@
-"""Annotate 15 tennis court keypoints on a still image and verify via homography overlay."""
+"""Annotate 14 tennis court keypoints on a still image and verify via homography overlay."""
 
 from __future__ import annotations
 
 import argparse
+import sys
 from pathlib import Path
 from tkinter import Canvas, Event, Tk
 
@@ -12,7 +13,13 @@ import pandas as pd
 from loguru import logger
 from PIL import Image, ImageTk
 
-from court_schema import (
+_TOOLS_DIR = Path(__file__).resolve().parent
+_REPO_ROOT = _TOOLS_DIR.parent
+for _path in (_REPO_ROOT, _TOOLS_DIR):
+    if str(_path) not in sys.path:
+        sys.path.insert(0, str(_path))
+
+from court_schema import (  # noqa: E402
     EDGES,
     N_POINTS,
     POINT_BY_ID,
@@ -20,6 +27,7 @@ from court_schema import (
     model_xy,
     overlay_segments_m,
 )
+from court_yolo import load_pose_label_points, write_pose_label  # noqa: E402
 
 CANVAS_W = 1280
 CANVAS_H = 720
@@ -76,7 +84,8 @@ class CourtAnnotatorApplication:
         self.info_panel.place(x=0, y=CANVAS_H)
 
         self.directory = self.image_path.parent
-        self.image_name = self.image_path.name.removesuffix("".join(self.image_path.suffixes))
+        self.image_name = self.image_path.stem
+        self.txt_path = self.directory / f"{self.image_name}.txt"
         self.csv_path = self.directory / f"{self.image_name}_court.csv"
 
         self.root.bind("q", self.close_window)
@@ -148,7 +157,8 @@ class CourtAnnotatorApplication:
             self.info_text_id,
             text=(
                 f"active {p.id}:{p.name} ({status}) — {p.label} | "
-                f"{placed}/{N_POINTS} | ←/→ select  click place  d delete  s save  v verify  q quit"
+                f"{placed}/{N_POINTS} | ←/→ select  click place  d delete  "
+                f"s save (.txt+.csv)  v verify  q quit"
             ),
         )
 
@@ -188,40 +198,59 @@ class CourtAnnotatorApplication:
         self.update_info()
 
     def import_annotations(self) -> None:
-        if not self.csv_path.exists():
-            return
-        logger.info(f"Import annotations from {self.csv_path}")
-        data = pd.read_csv(self.csv_path)
-        for row in data.itertuples(index=False):
+        if self.txt_path.exists():
+            logger.info(f"Import YOLO-pose label from {self.txt_path}")
             try:
-                pid = int(getattr(row, "id"))
-            except (AttributeError, TypeError, ValueError):
-                continue
-            if pid not in POINT_BY_ID:
-                continue
-            x, y = getattr(row, "x", None), getattr(row, "y", None)
-            if x is None or y is None or (isinstance(x, float) and np.isnan(x)):
-                continue
-            self.annotations[pid] = (float(x), float(y))
+                self.annotations = load_pose_label_points(
+                    self.txt_path, self.img_w, self.img_h
+                )
+            except ValueError as exc:
+                logger.error(f"Could not parse {self.txt_path}: {exc}")
+                self.annotations = {}
+        elif self.csv_path.exists():
+            logger.info(f"Import legacy CSV from {self.csv_path}")
+            data = pd.read_csv(self.csv_path)
+            for row in data.itertuples(index=False):
+                try:
+                    pid = int(getattr(row, "id"))
+                except (AttributeError, TypeError, ValueError):
+                    continue
+                if pid not in POINT_BY_ID:
+                    continue
+                x, y = getattr(row, "x", None), getattr(row, "y", None)
+                if x is None or y is None or (isinstance(x, float) and np.isnan(x)):
+                    continue
+                self.annotations[pid] = (float(x), float(y))
+        else:
+            return
+
         if self.annotations:
             missing = [p.id for p in POINTS if p.id not in self.annotations]
             self.active_id = missing[0] if missing else 0
 
     def export_annotations(self, event: Event | None = None) -> None:
+        if not self.annotations:
+            logger.warning("Nothing to save")
+            return
+        if len(self.annotations) < N_POINTS:
+            logger.warning(f"Partial save: {len(self.annotations)}/{N_POINTS} points")
+
+        try:
+            write_pose_label(self.txt_path, self.annotations, self.img_w, self.img_h)
+        except ValueError as exc:
+            logger.error(f"Could not write YOLO label: {exc}")
+            return
+        logger.info(f"Saved YOLO-pose label to {self.txt_path}")
+
         rows = []
         for p in POINTS:
             if p.id not in self.annotations:
                 continue
             x, y = self.annotations[p.id]
             rows.append({"id": p.id, "name": p.name, "x": x, "y": y})
-        if not rows:
-            logger.warning("Nothing to save")
-            return
-        if len(rows) < N_POINTS:
-            logger.warning(f"Partial save: {len(rows)}/{N_POINTS} points")
         df = pd.DataFrame(rows, columns=["id", "name", "x", "y"])
         df.to_csv(self.csv_path, index=False)
-        logger.info(f"Saved annotations to {self.csv_path}")
+        logger.info(f"Saved secondary CSV to {self.csv_path}")
 
     def verify_overlay(self, event: Event | None = None) -> None:
         if len(self.annotations) < 4:

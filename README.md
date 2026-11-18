@@ -119,8 +119,9 @@ SportAI/
 ├── tools/                            # Manual annotation / video helpers
 │   ├── ball_anotator.py              # Click ball positions on frames
 │   ├── player_annotator.py           # Draw player bboxes (+ YOLO pre-annotate)
-│   ├── court_schema.py               # 14 ITF court keypoints + edges (metres)
-│   ├── court_annotator.py            # Label court keypoints + homography overlay
+│   ├── court_schema.py               # 14 ITF court keypoints + edges (metres) — SSoT
+│   ├── court_yolo.py                 # Shared YOLO-pose encode/decode for court labels
+│   ├── court_annotator.py            # Label court keypoints → .txt (+ CSV) + overlay
 │   └── video_cuter.py                # Cut clips / export a still frame
 ├── trains/                           # Training code (not imported by pipeline)
 │   └── tennis/
@@ -719,7 +720,7 @@ frame,class_id,x0,y0,x1,y1
 
 ### Court annotator — `tools/court_annotator.py`
 
-GUI to label **14 ITF tennis court keypoints** on a still image (schema in `tools/court_schema.py`, aligned with the Ultralytics court pose dataset). Named points + fixed edges show which intersections belong together; `v` projects the model court onto the image via OpenCV homography so you can judge alignment.
+GUI to label **14 ITF tennis court keypoints** on a still image. Schema / flip map live only in [`tools/court_schema.py`](tools/court_schema.py) (shared with train prepare/import and NRT eval). Named points + fixed edges; `v` projects the model court via OpenCV homography.
 
 ```bash
 python tools/court_annotator.py --image_path path/to/frame.png
@@ -731,9 +732,11 @@ python tools/court_annotator.py --image_path path/to/frame.png
 | Click near an existing point | Select that point |
 | `←` / `→` | Previous / next keypoint id |
 | `d` | Delete the active point |
-| `s` | Export `{image}_court.csv` (`id,name,x,y`; partial save warns) |
+| `s` | Save **YOLO-pose** `{stem}.txt` (primary) + secondary `{stem}_court.csv` |
 | `v` | Homography overlay (green lines + crosses) in an OpenCV window |
 | `q` | Quit |
+
+Reload prefers `{stem}.txt` if present, else legacy `_court.csv`. Encode/decode helpers: [`tools/court_yolo.py`](tools/court_yolo.py).
 
 Point order (guided, far→near): far baseline (DL/SL/SR/DR) → far service + T → near service + T → near baseline (DL/SL/SR/DR). No net-centre keypoint (net is drawn only in the overlay).
 
@@ -803,9 +806,9 @@ After training, copy / upload the stable weights so `TennisPlayerModel` can load
 
 ### Court detection (YOLO11 pose, 14 keypoints)
 
-Code: `trains/tennis/court_detection/` (NDJSON import + optional CSV prepare + Ultralytics pose train + MLflow).
+Code: `trains/tennis/court_detection/` (NDJSON import + optional prepare + Ultralytics pose train + MLflow).
 
-Uses the same **14** ITF keypoints as `tools/court_schema.py` / the court annotator (Ultralytics *Tennis Court Keypoint Detection* layout). Task is **pose** (1 class `tennis court` + 14 kpts), not plain detect.
+Uses the same **14** ITF keypoints / `FLIP_IDX` from `tools/court_schema.py` only (no local copies). Task is **pose** (1 class `tennis court` + 14 kpts), not plain detect.
 
 **Primary path — Ultralytics NDJSON export**
 
@@ -824,7 +827,7 @@ python train.py --config configs/train.yaml
 
 **Optional — extra manual images**
 
-Annotate with the court annotator into `datasets/tennis/court_detection/images/`, then set `pipeline.prepare_dataset: true` (and usually `import_ndjson: false` if you only want CSV data, or run prepare into a separate folder).
+Annotate with the court annotator into `datasets/tennis/court_detection/images/` (writes sibling YOLO `{stem}.txt`). Set `pipeline.prepare_dataset: true` (and usually `import_ndjson: false`). `prepare_dataset` prefers existing `.txt`; falls back to legacy `*_court.csv`.
 
 What training does:
 

@@ -1,9 +1,10 @@
-"""Build an Ultralytics YOLO-pose dataset from court annotator images + CSV."""
+"""Build an Ultralytics YOLO-pose dataset from court images + YOLO .txt and/or CSV."""
 
 from __future__ import annotations
 
 import random
 import shutil
+import sys
 from pathlib import Path
 
 import cv2
@@ -12,10 +13,19 @@ import pandas as pd
 import yaml
 from loguru import logger
 
-# Must match tools/court_schema.py ids 0..13 (left-right swap for hflip aug).
-N_KEYPOINTS = 14
-FLIP_IDX = [3, 2, 1, 0, 6, 5, 4, 9, 8, 7, 13, 12, 11, 10]
+REPO_ROOT = Path(__file__).resolve().parents[4]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
 
+from tools.court_schema import FLIP_IDX, N_POINTS  # noqa: E402
+from tools.court_yolo import (  # noqa: E402
+    DEFAULT_BBOX_PADDING,
+    bbox_from_keypoints,
+    encode_pose_label_line,
+    load_pose_label_points,
+)
+
+N_KEYPOINTS = N_POINTS
 IMAGE_EXTS_DEFAULT = (".png", ".jpg", ".jpeg", ".webp")
 
 
@@ -48,7 +58,7 @@ def _reset_dataset_dirs(dataset_dir: Path) -> None:
         (dataset_dir / "labels" / split).mkdir(parents=True, exist_ok=True)
 
 
-def _load_keypoints(csv_path: Path) -> dict[int, tuple[float, float]]:
+def _load_keypoints_csv(csv_path: Path) -> dict[int, tuple[float, float]]:
     data = pd.read_csv(csv_path)
     points: dict[int, tuple[float, float]] = {}
     if "id" not in data.columns or "x" not in data.columns or "y" not in data.columns:
@@ -68,62 +78,32 @@ def _load_keypoints(csv_path: Path) -> dict[int, tuple[float, float]]:
     return points
 
 
-def _bbox_from_keypoints(
-    points: dict[int, tuple[float, float]],
+def _resolve_annotation_points(
+    image_path: Path,
     width: int,
     height: int,
-    padding: float,
-) -> tuple[float, float, float, float] | None:
-    xs = [p[0] for p in points.values()]
-    ys = [p[1] for p in points.values()]
-    x0, x1 = min(xs), max(xs)
-    y0, y1 = min(ys), max(ys)
-    pad_x = padding * width
-    pad_y = padding * height
-    x0 = max(0.0, x0 - pad_x)
-    y0 = max(0.0, y0 - pad_y)
-    x1 = min(float(width), x1 + pad_x)
-    y1 = min(float(height), y1 + pad_y)
-    if x1 <= x0 or y1 <= y0:
-        return None
-    return x0, y0, x1, y1
+    annotations_suffix: str,
+) -> dict[int, tuple[float, float]] | None:
+    """Prefer sibling YOLO ``.txt``, else legacy ``*_court.csv``."""
+    txt_path = image_path.with_suffix(".txt")
+    if txt_path.exists():
+        try:
+            return load_pose_label_points(txt_path, width, height)
+        except ValueError as exc:
+            logger.warning("Skipping {}: invalid YOLO label ({})", image_path.name, exc)
+            return None
 
+    csv_path = image_path.with_name(f"{image_path.stem}{annotations_suffix}")
+    if csv_path.exists():
+        return _load_keypoints_csv(csv_path)
 
-def _xyxy_to_yolo(
-    x0: float,
-    y0: float,
-    x1: float,
-    y1: float,
-    width: int,
-    height: int,
-) -> tuple[float, float, float, float]:
-    xc = ((x0 + x1) / 2.0) / width
-    yc = ((y0 + y1) / 2.0) / height
-    bw = (x1 - x0) / width
-    bh = (y1 - y0) / height
-    return (
-        float(min(max(xc, 0.0), 1.0)),
-        float(min(max(yc, 0.0), 1.0)),
-        float(min(max(bw, 0.0), 1.0)),
-        float(min(max(bh, 0.0), 1.0)),
+    logger.warning(
+        "Skipping {}: missing {}.txt or *{}",
+        image_path.name,
+        image_path.stem,
+        annotations_suffix,
     )
-
-
-def _pose_label_line(
-    points: dict[int, tuple[float, float]],
-    bbox: tuple[float, float, float, float],
-    width: int,
-    height: int,
-) -> str:
-    xc, yc, bw, bh = _xyxy_to_yolo(*bbox, width, height)
-    parts = [f"0 {xc:.6f} {yc:.6f} {bw:.6f} {bh:.6f}"]
-    for pid in range(N_KEYPOINTS):
-        if pid in points:
-            x, y = points[pid]
-            parts.append(f"{x / width:.6f} {y / height:.6f} 2")
-        else:
-            parts.append("0.000000 0.000000 0")
-    return " ".join(parts)
+    return None
 
 
 def _write_data_yaml(dataset_dir: Path, class_names: list[str]) -> Path:
@@ -151,12 +131,10 @@ def prepare_dataset(
     val_ratio: float = 0.2,
     split_seed: int = 42,
     min_keypoints: int = 4,
-    bbox_padding: float = 0.02,
+    bbox_padding: float = DEFAULT_BBOX_PADDING,
 ) -> Path:
     """
-    Convert still images + ``*_court.csv`` into a YOLO-pose train/val dataset.
-
-    Split is by image file (seeded). Requires at least ``min_keypoints`` visible points.
+    Convert still images + YOLO-pose ``.txt`` (preferred) or ``*_court.csv`` into train/val.
     """
     images_dir = Path(images_dir)
     dataset_dir = Path(dataset_dir)
@@ -176,11 +154,14 @@ def prepare_dataset(
 
     samples: list[tuple[Path, dict[int, tuple[float, float]]]] = []
     for image_path in candidates:
-        csv_path = image_path.with_name(f"{image_path.stem}{annotations_suffix}")
-        if not csv_path.exists():
-            logger.warning("Skipping {}: missing {}", image_path.name, csv_path.name)
+        frame = imread_unicode(image_path)
+        if frame is None:
+            logger.warning("Could not read {}", image_path)
             continue
-        points = _load_keypoints(csv_path)
+        height, width = frame.shape[:2]
+        points = _resolve_annotation_points(image_path, width, height, annotations_suffix)
+        if points is None:
+            continue
         if len(points) < min_keypoints:
             logger.warning(
                 "Skipping {}: only {}/{} keypoints (min={})",
@@ -195,7 +176,7 @@ def prepare_dataset(
     if not samples:
         raise FileNotFoundError(
             f"No usable annotated images under {images_dir} "
-            f"(need '*{annotations_suffix}' with >= {min_keypoints} points)"
+            f"(need sibling '.txt' or '*{annotations_suffix}' with >= {min_keypoints} points)"
         )
 
     logger.info("Preparing YOLO-pose dataset from {} image(s)", len(samples))
@@ -216,7 +197,7 @@ def prepare_dataset(
             logger.warning("Could not read {}", image_path)
             continue
         height, width = frame.shape[:2]
-        bbox = _bbox_from_keypoints(points, width, height, bbox_padding)
+        bbox = bbox_from_keypoints(points, width, height, bbox_padding)
         if bbox is None:
             logger.warning("Skipping {}: invalid bbox", image_path.name)
             continue
@@ -226,13 +207,16 @@ def prepare_dataset(
         out_image = dataset_dir / "images" / split / f"{stem}{out_ext}"
         out_label = dataset_dir / "labels" / split / f"{stem}.txt"
         if not cv2.imwrite(str(out_image), frame):
-            # Fallback for odd paths: encode + tofile
             ok, buf = cv2.imencode(out_ext, frame)
             if not ok:
                 raise RuntimeError(f"Failed to write image {out_image}")
             buf.tofile(str(out_image))
 
-        out_label.write_text(_pose_label_line(points, bbox, width, height) + "\n", encoding="utf-8")
+        out_label.write_text(
+            encode_pose_label_line(points, width, height, bbox=bbox, padding=bbox_padding)
+            + "\n",
+            encoding="utf-8",
+        )
         if split == "train":
             n_train += 1
         else:

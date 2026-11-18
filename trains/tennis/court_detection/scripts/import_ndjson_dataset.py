@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import sys
 import urllib.error
 import urllib.request
 from pathlib import Path
@@ -10,9 +11,13 @@ from pathlib import Path
 import yaml
 from loguru import logger
 
-# Keep in sync with tools/court_schema.FLIP_IDX (14 kpts L/R).
-FLIP_IDX = [3, 2, 1, 0, 6, 5, 4, 9, 8, 7, 13, 12, 11, 10]
-N_KEYPOINTS = 14
+REPO_ROOT = Path(__file__).resolve().parents[4]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+from tools.court_schema import FLIP_IDX, N_POINTS  # noqa: E402
+
+N_KEYPOINTS = N_POINTS
 VALID_SPLITS = ("train", "val", "test")
 
 

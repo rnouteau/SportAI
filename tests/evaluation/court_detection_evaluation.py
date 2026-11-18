@@ -10,11 +10,12 @@ import numpy as np
 import pandas as pd
 import torch
 from loguru import logger
+from tools.court_schema import N_POINTS
 from ultralytics.engine.results import Results
 
 from pipeline.models.tennis.tennis_court_model import TennisCourtModel
 
-N_KEYPOINTS = 14
+N_KEYPOINTS = N_POINTS
 IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".webp"}
 
 
