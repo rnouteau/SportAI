@@ -113,7 +113,7 @@ def render_overlay_video(
 
     fps = float(video_reader.fps) if video_reader.fps and video_reader.fps > 0 else 25.0
     size = (int(video_reader.width), int(video_reader.height))
-    fourcc = cv2.VideoWriter_fourcc(*"mp4v")
+    fourcc = cv2.VideoWriter.fourcc(*"mp4v")
     writer = cv2.VideoWriter(str(out), fourcc, fps, size)
     if not writer.isOpened():
         raise RuntimeError(f"Could not open VideoWriter for {out}")

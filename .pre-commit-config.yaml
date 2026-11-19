@@ -21,12 +21,11 @@ repos:
         args: [--fix]
       - id: ruff-format
 
-  - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v1.18.2
+  - repo: local
     hooks:
       - id: mypy
-        # Only type-check production pipeline code (not trains/tools/tests).
+        name: mypy
+        entry: mypy --config-file=pyproject.toml pipeline
+        language: system
+        pass_filenames: false
         files: ^pipeline/
-        args: [--config-file=pyproject.toml]
-        additional_dependencies:
-          - types-PyYAML
