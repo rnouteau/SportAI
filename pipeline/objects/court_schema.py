@@ -61,7 +61,9 @@ class CourtSchema(ABC):
         if h_court_to_img is None:
             return None
         try:
-            h_img_to_court = np.asarray(h_court_to_img, dtype=np.float64)
+            h_img_to_court = h_img_to_court = np.linalg.inv(
+                np.asarray(h_court_to_img, dtype=np.float64)
+            )
         except np.linalg.LinAlgError:
             return None
         if abs(h_img_to_court[2, 2]) > 1e-12:
