@@ -12,6 +12,8 @@ on:
       - "pyproject.toml"
       - ".pre-commit-config.yaml"
       - ".github/workflows/pr-tests.yml"
+      - ".github/actions/**"
+      - "scripts/**"
   push:
     branches: [main]
   workflow_dispatch:
@@ -185,9 +187,9 @@ jobs:
       - uses: actions/cache@v4
         with:
           path: ~/.cache/huggingface
-          key: hf-${{ hashFiles('tests/configs/nrt/tennis/config_test_tennis_accuracy_ball_detection.yaml', 'tests/configs/nrt/tennis/config_test_tennis_accuracy_players_detection.yaml','tests/configs/nrt/tennis/config_test_tennis_accuracy_court_detection.yaml') }}
+          key: hf-${{ hashFiles('tests/configs/nrt/tennis/*.yaml') }}
 
-      - name: Run tennis NRT (ball + players + court)
+      - name: Run tennis NRT (ball, players, court, tracking)
         if: env.HF_TOKEN != ''
         run: python -m pytest tests/nrt/tennis -m nrt -s -rs ${{ inputs.update_baseline && '--update-baseline' || '' }}
 
@@ -207,6 +209,10 @@ jobs:
             echo
             echo "## Tennis court detection"
             cat outputs/tests/tennis_court_detection/report.md 2>/dev/null || echo "_No court report._"
+            echo
+            echo "## Tennis player tracking"
+            cat outputs/tests/tennis_player_tracking/report.md 2>/dev/null || echo "_No tracking report._"
+
           } >> "$GITHUB_STEP_SUMMARY"
 
       - uses: actions/upload-artifact@v4
@@ -217,18 +223,18 @@ jobs:
             outputs/tests/tennis_ball_detection
             outputs/tests/tennis_player_detection
             outputs/tests/tennis_court_detection
+            outputs/tests/tennis_player_tracking
             tests/baselines/tennis/tennis_ball_detection.json
             tests/baselines/tennis/tennis_player_detection.json
             tests/baselines/tennis/tennis_court_detection.json
+            tests/baselines/tennis/tennis_player_tracking.json
           if-no-files-found: ignore
 
-      - name: Publish wiki Home
+      - name: Publish wiki
         if: always() && github.ref == 'refs/heads/main'
         uses: ./.github/actions/publish-wiki
         with:
-          report_json: outputs/tests/tennis_ball_detection/report.json
-          report_json_player: outputs/tests/tennis_player_detection/report.json
-          report_json_court: outputs/tests/tennis_court_detection/report.json
+          reports_dir: outputs/tests
           token: ${{ secrets.WIKI_TOKEN }}
           commit: ${{ github.sha }}
           run_url: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}

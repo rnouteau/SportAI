@@ -1,18 +1,11 @@
-name: Publish wiki Home
-description: Append NRT F1 history and push Home.md to the GitHub Wiki
+name: Publish wiki
+description: Render the wiki (Home, one page per NRT suite, sidebar, history) and push it
 
 inputs:
-  report_json:
-    description: Path to the ball NRT report.json
-    required: true
-  report_json_player:
-    description: Optional path to the player NRT report.json
+  reports_dir:
+    description: Folder holding <suite>/report.json for each NRT suite
     required: false
-    default: ""
-  report_json_court:
-    description: Optional path to the court NRT report.json
-    required: false
-    default: ""
+    default: outputs/tests
   token:
     description: PAT with permission to push to the repository wiki
     required: true
@@ -29,45 +22,31 @@ inputs:
     description: Job conclusion (success, failure, ...)
     required: true
   tolerance:
-    description: Baseline metric tolerance used for Status column
+    description: Baseline tolerance used for the status column
     required: false
     default: "0.005"
 
 runs:
   using: composite
   steps:
-    - name: Check report and token
+    - name: Check reports and token
       id: check
       shell: bash
       env:
         WIKI_TOKEN: ${{ inputs.token }}
+        REPORTS_DIR: ${{ inputs.reports_dir }}
       run: |
         if [ -z "$WIKI_TOKEN" ]; then
-          echo "::warning::WIKI_TOKEN is empty — wiki Home not updated"
+          echo "::warning::WIKI_TOKEN is empty — wiki not updated"
           echo "skip=true" >> "$GITHUB_OUTPUT"
           exit 0
         fi
-        if [ ! -f "${{ inputs.report_json }}" ]; then
-          echo "::warning::Report not found at ${{ inputs.report_json }} — wiki Home not updated"
+        if ! ls "$REPORTS_DIR"/*/report.json >/dev/null 2>&1; then
+          echo "::warning::No report.json under $REPORTS_DIR — wiki not updated"
           echo "skip=true" >> "$GITHUB_OUTPUT"
           exit 0
         fi
-        if [ -n "${{ inputs.report_json_player }}" ] && [ -f "${{ inputs.report_json_player }}" ]; then
-          echo "player_report=${{ inputs.report_json_player }}" >> "$GITHUB_OUTPUT"
-        else
-          echo "player_report=" >> "$GITHUB_OUTPUT"
-          if [ -n "${{ inputs.report_json_player }}" ]; then
-            echo "::warning::Player report not found at ${{ inputs.report_json_player }} — wiki Home without player section"
-          fi
-        fi
-        if [ -n "${{ inputs.report_json_court }}" ] && [ -f "${{ inputs.report_json_court }}" ]; then
-          echo "court_report=${{ inputs.report_json_court }}" >> "$GITHUB_OUTPUT"
-        else
-          echo "court_report=" >> "$GITHUB_OUTPUT"
-          if [ -n "${{ inputs.report_json_court }}" ]; then
-            echo "::warning::Court report not found at ${{ inputs.report_json_court }} — wiki Home without court section"
-          fi
-        fi
+        echo "Reports found:"; ls "$REPORTS_DIR"/*/report.json
         echo "skip=false" >> "$GITHUB_OUTPUT"
 
     - name: Checkout wiki
@@ -78,26 +57,17 @@ runs:
         token: ${{ inputs.token }}
         path: wiki-repo
 
-    - name: Render Home.md and update history
+    - name: Render wiki pages
       if: steps.check.outputs.skip != 'true'
       shell: bash
       run: |
         set -euo pipefail
-        EXTRA_ARGS=()
-        if [ -n "${{ steps.check.outputs.player_report }}" ]; then
-          EXTRA_ARGS+=(--report-player "${{ steps.check.outputs.player_report }}")
-        fi
-        if [ -n "${{ steps.check.outputs.court_report }}" ]; then
-          EXTRA_ARGS+=(--report-court "${{ steps.check.outputs.court_report }}")
-        fi
         python "$GITHUB_WORKSPACE/scripts/render_wiki_home.py" \
-          --report "${{ inputs.report_json }}" \
-          "${EXTRA_ARGS[@]}" \
-          --output wiki-repo/Home.md \
-          --history-in wiki-repo/nrt-history.json \
-          --history-out wiki-repo/nrt-history.json \
+          --reports-dir "${{ inputs.reports_dir }}" \
+          --wiki-dir wiki-repo \
           --commit "${{ inputs.commit }}" \
           --run-url "${{ inputs.run_url }}" \
+          --repo-url "${{ github.server_url }}/${{ github.repository }}" \
           --workflow "${{ inputs.workflow }}" \
           --conclusion "${{ inputs.conclusion }}" \
           --tolerance "${{ inputs.tolerance }}"
@@ -110,10 +80,10 @@ runs:
         cd wiki-repo
         git config user.name "github-actions[bot]"
         git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-        git add Home.md nrt-history.json
+        git add -A
         if git diff --staged --quiet; then
           echo "Wiki unchanged — nothing to push"
           exit 0
         fi
-        git commit -m "Update Home + F1 history from NRT (${{ inputs.commit }})"
+        git commit -m "Update wiki from NRT (${{ inputs.commit }})"
         git push
