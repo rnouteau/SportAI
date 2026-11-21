@@ -3,15 +3,15 @@ models:
   - name: pipeline.models.tennis.TennisPlayerModel
     config:
       device: "cpu"
-      weight: "./models/TENNIS_PLAYER_MODEL_17_11_2026.pt"
+      weight: "./models/yolo11s.pt"
 dataset:
-  local_dir: ./datasets/tennis/player_detection/test
+  local_dir: ./datasets/tennis/player_detection/test_regression
   repo_id: rnouteau/sportai-test-data
-  revision: v2
-  subset: tennis/player_detection/test
+  revision: v4
+  subset: tennis/player_detection/test_regression
 weights:
   repo_id: rnouteau/sportai-models
-  filename: tennis/player/TENNIS_PLAYER_MODEL_17_11_2026.pt
+  filename: tennis/player/yolo11s.pt
 evaluation:
   iou_threshold: 0.5
 regression:

@@ -19,7 +19,7 @@ for _path in (_REPO_ROOT, _TOOLS_DIR):
     if str(_path) not in sys.path:
         sys.path.insert(0, str(_path))
 
-from court_yolo import load_pose_label_points, write_pose_label  # noqa: E402
+from tools.court_annotator.court_yolo import load_pose_label_points, write_pose_label  # noqa: E402
 from pipeline.objects.tennis.tennis_court_schema import (  # noqa: E402
     EDGES,
     N_POINTS,

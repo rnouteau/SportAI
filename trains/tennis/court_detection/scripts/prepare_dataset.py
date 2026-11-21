@@ -18,7 +18,7 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from pipeline.objects.tennis.tennis_court_schema import FLIP_IDX, N_POINTS  # noqa: E402
-from tools.court_yolo import (  # noqa: E402
+from tools.court_annotator.court_yolo import (  # noqa: E402
     DEFAULT_BBOX_PADDING,
     bbox_from_keypoints,
     encode_pose_label_line,

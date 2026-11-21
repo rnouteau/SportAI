@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-from tools.court_yolo import (
+from tools.court_annotator.court_yolo import (
     decode_pose_label_line,
     encode_pose_label_line,
     load_pose_label_points,

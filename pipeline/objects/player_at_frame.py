@@ -13,6 +13,19 @@ class PlayerAtFrame:
         return cls(dict(fields))
 
     @property
+    def track_id(self) -> int | None:
+        """Tracker id (stable across frames); None when the tracker gave no id."""
+        value = self.data.get("track_id")
+        return int(value) if value is not None else None
+
+    @track_id.setter
+    def track_id(self, value: int | None) -> None:
+        if value is None:
+            self.data.pop("track_id", None)
+        else:
+            self.data["track_id"] = int(value)
+
+    @property
     def bbox(self) -> list[float] | None:
         return self.data.get("position")
 

@@ -1,0 +1,20 @@
+analysis: pipeline.objects.tennis.TennisAnalysis
+models:
+  - name: pipeline.models.tennis.TennisPlayerModel
+    config:
+      device: "cpu"
+      weight: "./models/yolo11s.pt"
+dataset:
+  local_dir: ./datasets/tennis/player_tracking/test_regression
+  repo_id: rnouteau/sportai-test-data
+  revision: v4
+  subset: tennis/player_tracking/test_regression
+weights:
+  repo_id: rnouteau/sportai-models
+  filename: tennis/player/yolo11s.pt
+evaluation:
+  iou_threshold: 0.5
+regression:
+  baseline: tests/baselines/tennis/tennis_player_tracking.json
+  metrics: [IDF1, ID switches, MOTA, Precision, Recall]
+  tolerance: 0.005

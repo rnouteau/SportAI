@@ -2,7 +2,7 @@ import shutil
 
 import yt_dlp
 
-URL = "https://www.youtube.com/watch?v=3x3eEWCZmWQ&t=7s"
+URL = "https://www.youtube.com/watch?v=r6iz35hizA8"
 OUTPUT_TEMPLATE = "downloads/%(title)s [%(id)s].%(ext)s"
 MAX_HEIGHT = 720
 BROWSER = "firefox"

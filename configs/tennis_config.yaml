@@ -9,6 +9,8 @@ models:
     config:
         device: "cuda"
         weight: "./models/TENNIS_PLAYER_MODEL_17_11_2026.pt"
+        conf: 0.1
+        tracker: "bytetrack.yaml"
   - name: pipeline.models.tennis.TennisCourtModel
     config:
         device: "cuda"

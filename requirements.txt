@@ -7,4 +7,6 @@ scipy==1.13.1
 loguru==0.7.3
 pyyaml==6.0.3
 ultralytics==8.4.193
+lap==0.5.14
+motmetrics==1.4.0
 mlflow>=2.14.0
