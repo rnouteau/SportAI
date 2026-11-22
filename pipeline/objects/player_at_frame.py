@@ -26,6 +26,19 @@ class PlayerAtFrame:
             self.data["track_id"] = int(value)
 
     @property
+    def player_id(self) -> int | None:
+        """Stable player id set by the player selector (1 = near, 2 = far)."""
+        value = self.data.get("player_id")
+        return int(value) if value is not None else None
+
+    @player_id.setter
+    def player_id(self, value: int | None) -> None:
+        if value is None:
+            self.data.pop("player_id", None)
+        else:
+            self.data["player_id"] = int(value)
+
+    @property
     def bbox(self) -> list[float] | None:
         return self.data.get("position")
 

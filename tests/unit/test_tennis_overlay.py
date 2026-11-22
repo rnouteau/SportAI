@@ -1,6 +1,8 @@
 from pathlib import Path
+from types import SimpleNamespace
 
 import cv2
+import numpy as np
 import pytest
 
 from pipeline.models.model import Model
@@ -9,7 +11,14 @@ from pipeline.objects.tennis.tennis_analysis import TennisAnalysis
 from pipeline.objects.tennis.tennis_ball import TennisBall
 from pipeline.objects.tennis.tennis_homography import TennisHomography
 from pipeline.objects.tennis.tennis_player_at_frame import TennisPlayerAtFrame
-from pipeline.render.tennis_overlay import render_overlay_video
+from pipeline.render.tennis_overlay import (
+    ID_PALETTE,
+    PLAYER_COLOR,
+    _draw_players,
+    _player_label,
+    player_color,
+    render_overlay_video,
+)
 from pipeline.run import run_pipeline
 from pipeline.video_reader import VideoReader
 from tests.helpers import make_synthetic_video
@@ -31,6 +40,7 @@ class FakeOverlayModel(Model[TennisAnalysis]):
             player = TennisPlayerAtFrame.create()
             player.bbox = (5.0, 5.0, 25.0, 40.0)
             player.confidence = 0.8
+            player.track_id = 3
             player.legs.court = CourtPosition.create(x=1.0, y=2.0)
             frame.players = [player]
 
@@ -141,3 +151,65 @@ def test_run_pipeline_skips_overlay_in_test_mode(tmp_path: Path) -> None:
 
     assert data is not None
     assert not overlay_path.exists()
+
+
+@pytest.mark.unit
+def test_player_color_is_stable_per_track_id() -> None:
+    assert player_color(None) == PLAYER_COLOR
+    assert player_color(3) == player_color(3) == ID_PALETTE[3]
+    assert player_color(1) != player_color(2)
+    assert player_color(len(ID_PALETTE) + 1) == ID_PALETTE[1]
+
+
+def _frame_with_player(track_id: int | None) -> tuple[np.ndarray, object]:
+    player = TennisPlayerAtFrame.create()
+    player.bbox = (40.0, 60.0, 80.0, 140.0)
+    player.track_id = track_id
+    canvas = np.zeros((200, 200, 3), dtype=np.uint8)
+    _draw_players(canvas, SimpleNamespace(players=[player]))
+    return canvas, player
+
+
+@pytest.mark.unit
+def test_players_drawn_with_id_color_and_label() -> None:
+    canvas, _ = _frame_with_player(7)
+    color = np.array(player_color(7))
+    assert (canvas[100, 40] == color).all()  # left edge of the box
+    label_area = canvas[40:58, 40:90].reshape(-1, 3)
+    assert (label_area == color).all(axis=1).sum() > 50  # filled label background above the box
+
+
+@pytest.mark.unit
+def test_player_without_track_id_has_no_label() -> None:
+    canvas, _ = _frame_with_player(None)
+    assert (canvas[100, 40] == np.array(PLAYER_COLOR)).all()
+    assert not canvas[40:58, 40:90].any()
+
+
+@pytest.mark.unit
+def test_label_stays_inside_image_for_box_at_top_edge() -> None:
+    player = TennisPlayerAtFrame.create()
+    player.bbox = (180.0, 0.0, 199.0, 50.0)
+    player.track_id = 2
+    canvas = np.zeros((200, 200, 3), dtype=np.uint8)
+    _draw_players(canvas, SimpleNamespace(players=[player]))
+    assert (canvas[0:20, :].reshape(-1, 3) == np.array(player_color(2))).all(axis=1).any()
+
+
+@pytest.mark.unit
+def test_player_label() -> None:
+    assert _player_label(1, 7) == "P1 #7"
+    assert _player_label(2, None) == "P2"
+    assert _player_label(None, 7) == "ID 7"
+    assert _player_label(None, None) == ""
+
+
+@pytest.mark.unit
+def test_selected_player_colored_by_player_id() -> None:
+    player = TennisPlayerAtFrame.create()
+    player.bbox = (40.0, 60.0, 80.0, 140.0)
+    player.track_id = 7
+    player.player_id = 1
+    canvas = np.zeros((200, 200, 3), dtype=np.uint8)
+    _draw_players(canvas, SimpleNamespace(players=[player]))
+    assert (canvas[100, 40] == np.array(player_color(1))).all()

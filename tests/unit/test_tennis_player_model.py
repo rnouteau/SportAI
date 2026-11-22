@@ -68,11 +68,18 @@ def test_defaults_for_tracker_and_conf(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 @pytest.mark.unit
-def test_keeps_two_most_confident_with_track_ids(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_keeps_everyone_by_default_sorted_by_confidence(monkeypatch: pytest.MonkeyPatch) -> None:
     analysis, _ = _run([_boxes([0.3, 0.9, 0.8], [5, 7, 9])], monkeypatch=monkeypatch)
     players = analysis.frames[0].players
-    assert [p.track_id for p in players] == [7, 9]
-    assert [p.confidence for p in players] == pytest.approx([0.9, 0.8])
+    assert [p.track_id for p in players] == [7, 9, 5]
+    assert [p.confidence for p in players] == pytest.approx([0.9, 0.8, 0.3])
+
+
+@pytest.mark.unit
+def test_max_players_keeps_most_confident(monkeypatch: pytest.MonkeyPatch) -> None:
+    boxes = [_boxes([0.3, 0.9, 0.8], [5, 7, 9])]
+    analysis, _ = _run(boxes, {"max_players": 2}, monkeypatch=monkeypatch)
+    assert [p.track_id for p in analysis.frames[0].players] == [7, 9]
 
 
 @pytest.mark.unit

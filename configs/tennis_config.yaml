@@ -8,7 +8,7 @@ models:
   - name: pipeline.models.tennis.TennisPlayerModel
     config:
         device: "cuda"
-        weight: "./models/TENNIS_PLAYER_MODEL_17_11_2026.pt"
+        weight: "./models/yolo11s.pt"
         conf: 0.1
         tracker: "bytetrack.yaml"
   - name: pipeline.models.tennis.TennisCourtModel
@@ -24,7 +24,8 @@ models:
         smoothing_reset_ratio: 0.02 # scene-cut reset, fraction of frame diagonal
 stats:
   - name: pipeline.stats.tennis.TennisLegsCourtStat
-    config: {}
+  - name: pipeline.stats.tennis.TennisSideStat
+  - name: pipeline.stats.tennis.TennisPlayerSelectorStat
 outputs:
   path: ./outputs/tennis/stats.json
   video:

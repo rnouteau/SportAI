@@ -12,7 +12,6 @@ from pipeline.video_reader import VideoReader
 
 DEFAULT_TRACKER = "bytetrack.yaml"
 DEFAULT_CONF = 0.1
-N_PLAYERS = 2
 
 
 def _to_numpy(values: object) -> np.ndarray:
@@ -26,6 +25,8 @@ class TennisPlayerModel(Model[TennisAnalysis]):
       weight, device
       tracker: "bytetrack.yaml"   # Ultralytics tracker yaml (built-in name or path)
       conf: 0.1                   # detection threshold; keep it <= track_low_thresh
+      max_players: null           # keep the N most confident people per frame (null = all);
+                                  # keep everyone when TennisPlayerSelectorStat runs after
     """
 
     def __init__(self, config: dict) -> None:
@@ -39,6 +40,8 @@ class TennisPlayerModel(Model[TennisAnalysis]):
         conf = self.config.get("conf")
         self.conf = float(conf) if conf is not None else DEFAULT_CONF
         self.input_size = self.config.get("input_size", (640, 640))
+        max_players = self.config.get("max_players")
+        self.max_players: int | None = int(max_players) if max_players is not None else None
 
         if self.model:
             logger.info(f"Model loaded with weight: {self.weight} on device: {self.device}")
@@ -78,7 +81,7 @@ class TennisPlayerModel(Model[TennisAnalysis]):
                 # (score < new_track_thresh): keep the boxes, without track_id.
                 ids = [int(v) for v in _to_numpy(boxes.id)] if boxes.id is not None else None
                 players = []
-                for i in confs.argsort()[::-1][:N_PLAYERS]:
+                for i in confs.argsort()[::-1][: self.max_players]:
                     player = TennisPlayerAtFrame.create(
                         position=xyxy[i].tolist(), confidence=float(confs[i])
                     )

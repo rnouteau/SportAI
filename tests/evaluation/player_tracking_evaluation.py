@@ -83,7 +83,10 @@ def load_mot_ground_truth(gt_path: Path) -> FrameBoxes:
 
 
 def predictions_by_frame(frames: list[dict]) -> tuple[FrameBoxes, int]:
-    """Pipeline frames → ({frame: [(xyxy box, track_id), ...]}, boxes skipped for missing id)."""
+    """Pipeline frames → ({frame: [(xyxy box, id), ...]}, boxes skipped for missing id).
+
+    The id is ``player_id`` when the player selector ran, otherwise ``track_id``.
+    """
     frame_preds: FrameBoxes = defaultdict(list)
     without_id = 0
     for frame in frames:
@@ -91,12 +94,14 @@ def predictions_by_frame(frames: list[dict]) -> tuple[FrameBoxes, int]:
         for player in frame.get("players") or []:
             if not player or not player.get("position"):
                 continue
-            if player.get("track_id") is None:
+            # player_id (stable, set by TennisPlayerSelectorStat) wins over the raw tracker id.
+            pred_id = player.get("player_id", player.get("track_id"))
+            if pred_id is None:
                 without_id += 1
                 continue
             pos = player["position"]
             box = [float(pos[0]), float(pos[1]), float(pos[2]), float(pos[3])]
-            frame_preds[frame_id].append((box, int(player["track_id"])))
+            frame_preds[frame_id].append((box, int(pred_id)))
     return dict(frame_preds), without_id
 
 

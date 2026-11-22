@@ -17,6 +17,41 @@ PLAYER_COLOR = (255, 128, 0)
 LEGS_COLOR = (0, 215, 255)
 COURT_COLOR = (0, 255, 0)
 KEYPOINT_COLOR = (255, 0, 255)
+# One colour per track id (BGR), so an id switch is visible at a glance.
+ID_PALETTE = (
+    (255, 128, 0),
+    (0, 128, 255),
+    (60, 200, 60),
+    (200, 60, 200),
+    (0, 200, 200),
+    (60, 60, 255),
+    (255, 200, 120),
+    (120, 255, 200),
+)
+
+
+def player_color(track_id: int | None) -> tuple[int, int, int]:
+    """Colour of a player box: fixed per track id, default colour without id."""
+    if track_id is None:
+        return PLAYER_COLOR
+    return ID_PALETTE[track_id % len(ID_PALETTE)]
+
+
+def _player_label(player_id: int | None, track_id: int | None) -> str:
+    """``"P1 #7"`` (selected player + tracker id), ``"ID 7"`` or ``""``."""
+    if player_id is not None:
+        return f"P{player_id} #{track_id}" if track_id is not None else f"P{player_id}"
+    return f"ID {track_id}" if track_id is not None else ""
+
+
+def _draw_label(frame: np.ndarray, text: str, x: int, y: int, color: tuple[int, int, int]) -> None:
+    """Text on a filled box whose bottom-left corner is (x, y); kept inside the image."""
+    font, scale, thickness = cv2.FONT_HERSHEY_SIMPLEX, 0.5, 1
+    (w, h), baseline = cv2.getTextSize(text, font, scale, thickness)
+    x = max(0, min(x, frame.shape[1] - w - 4))
+    y = max(h + baseline + 2, y)
+    cv2.rectangle(frame, (x, y - h - baseline - 2), (x + w + 4, y), color, -1)
+    cv2.putText(frame, text, (x + 2, y - baseline), font, scale, (0, 0, 0), thickness, cv2.LINE_AA)
 
 
 def _draw_ball(frame: np.ndarray, analysis_frame) -> None:
@@ -41,10 +76,16 @@ def _draw_ball(frame: np.ndarray, analysis_frame) -> None:
 
 def _draw_players(frame: np.ndarray, analysis_frame) -> None:
     for player in analysis_frame.players:
+        track_id, player_id = player.track_id, player.player_id
+        # Colour follows the stable player id when the selector ran, else the tracker id.
+        color = player_color(player_id if player_id is not None else track_id)
         bbox = player.bbox
         if bbox is not None and len(bbox) >= 4:
             x0, y0, x1, y1 = (int(round(v)) for v in bbox[:4])
-            cv2.rectangle(frame, (x0, y0), (x1, y1), PLAYER_COLOR, 2, cv2.LINE_AA)
+            cv2.rectangle(frame, (x0, y0), (x1, y1), color, 2, cv2.LINE_AA)
+            label = _player_label(player_id, track_id)
+            if label:
+                _draw_label(frame, label, x0, y0 - 2, color)
 
         legs = player.legs
         image_pt = legs.image

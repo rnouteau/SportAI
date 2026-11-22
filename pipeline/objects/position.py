@@ -61,6 +61,13 @@ class CourtPosition:
         """Metres from court origin (net centre for tennis)."""
         return math.hypot(float(self.x or 0.0), float(self.y or 0.0))
 
+    def distance_to(self, other: CourtPosition) -> float:
+        """Metres between two court positions."""
+        return math.hypot(
+            float(self.x or 0.0) - float(other.x or 0.0),
+            float(self.y or 0.0) - float(other.y or 0.0),
+        )
+
 
 class ImagePosition:
     """Pixel position (not JSON-backed; computed views like legs.image)."""

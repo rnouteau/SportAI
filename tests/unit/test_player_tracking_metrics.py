@@ -88,3 +88,10 @@ def test_detection_on_frame_without_ground_truth_is_false_positive() -> None:
     assert m["FP"] == 1
     assert m["Precision"] == pytest.approx(4 / 5)
     assert not math.isnan(m["MOTA"])
+
+
+@pytest.mark.unit
+def test_predictions_prefer_player_id_over_track_id() -> None:
+    frames = [{"id": 0, "players": [{"position": P1, "track_id": 7, "player_id": 1}]}]
+    preds, _ = predictions_by_frame(frames)
+    assert preds == {0: [(P1, 1)]}

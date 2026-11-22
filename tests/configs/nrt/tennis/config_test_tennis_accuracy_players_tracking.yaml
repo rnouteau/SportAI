@@ -4,6 +4,18 @@ models:
     config:
       device: "cpu"
       weight: "./models/yolo11s.pt"
+  # The court gives the homography used to select the two players.
+  - name: pipeline.models.tennis.TennisCourtModel
+    config:
+      device: "cpu"
+      weight: "./models/TENNIS_COURT_MODEL_18_11_2026.pt"
+    weights:
+      repo_id: rnouteau/sportai-models
+      filename: tennis/court/TENNIS_COURT_MODEL_18_11_2026.pt
+stats:
+  - name: pipeline.stats.tennis.TennisLegsCourtStat
+  - name: pipeline.stats.tennis.TennisSideStat
+  - name: pipeline.stats.tennis.TennisPlayerSelectorStat
 dataset:
   local_dir: ./datasets/tennis/player_tracking/test_regression
   repo_id: rnouteau/sportai-test-data

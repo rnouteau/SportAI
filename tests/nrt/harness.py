@@ -22,7 +22,9 @@ def prepare_config(path: Path) -> dict:
     for model_cfg in config["models"]:
         if device:
             model_cfg["config"]["device"] = device
-        model_cfg["config"]["weight"] = resolve_weights(model_cfg["config"], config["weights"])
+        # A model may name its own Hugging Face weights (several models in one test).
+        weights_cfg = model_cfg.get("weights") or config["weights"]
+        model_cfg["config"]["weight"] = resolve_weights(model_cfg["config"], weights_cfg)
     return config
 
 
