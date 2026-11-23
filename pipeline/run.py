@@ -83,7 +83,7 @@ def run_pipeline(
     video_reader.release()
 
     if test:
-        return analysis.data
+        return analysis.to_dict()
 
     analysis.save_json(config["outputs"].get("path", "outputs/analysis.json"))
     return None

@@ -1,6 +1,8 @@
+from dataclasses import dataclass
+
 from pipeline.objects.homography import Homography
 
 
+@dataclass
 class TennisHomography(Homography):
-    def __init__(self, data: dict) -> None:
-        super().__init__(data)
+    pass

@@ -2,16 +2,19 @@
   "context": {
     "device": "cpu",
     "dataset_revision": "v3",
-    "weights": "TENNIS_COURT_MODEL_18_11_2026.pt",
-    "match_threshold": 0.05,
-    "oks_sigma": 0.05
+    "TennisCourtModel.weights": "TENNIS_COURT_MODEL_18_11_2026.pt",
+    "evaluation.match_threshold": 0.05,
+    "evaluation.oks_sigma": 0.05,
+    "evaluation.pck_thresholds": [
+      0.05,
+      0.1
+    ]
   },
   "videos": {
     "-0M6ixK7aIU_1150_png.rf.b3270812b04e81971c6a8a12bfb8bbcf.jpg": {
       "PCK@0.05": 1.0,
       "PCK@0.1": 1.0,
       "OKS": 0.9975,
-      "Accuracy": 1.0,
       "Precision": 1.0,
       "Recall": 1.0,
       "F1-Score": 1.0
@@ -20,7 +23,6 @@
       "PCK@0.05": 1.0,
       "PCK@0.1": 1.0,
       "OKS": 0.9855,
-      "Accuracy": 1.0,
       "Precision": 1.0,
       "Recall": 1.0,
       "F1-Score": 1.0
@@ -29,7 +31,6 @@
       "PCK@0.05": 1.0,
       "PCK@0.1": 1.0,
       "OKS": 0.9897,
-      "Accuracy": 1.0,
       "Precision": 1.0,
       "Recall": 1.0,
       "F1-Score": 1.0
@@ -38,7 +39,6 @@
       "PCK@0.05": 1.0,
       "PCK@0.1": 1.0,
       "OKS": 0.9886,
-      "Accuracy": 1.0,
       "Precision": 1.0,
       "Recall": 1.0,
       "F1-Score": 1.0
@@ -47,7 +47,6 @@
       "PCK@0.05": 1.0,
       "PCK@0.1": 1.0,
       "OKS": 0.9838,
-      "Accuracy": 1.0,
       "Precision": 1.0,
       "Recall": 1.0,
       "F1-Score": 1.0
@@ -56,7 +55,6 @@
       "PCK@0.05": 1.0,
       "PCK@0.1": 1.0,
       "OKS": 0.9906,
-      "Accuracy": 1.0,
       "Precision": 1.0,
       "Recall": 1.0,
       "F1-Score": 1.0
@@ -65,7 +63,6 @@
       "PCK@0.05": 1.0,
       "PCK@0.1": 1.0,
       "OKS": 0.9303,
-      "Accuracy": 0.9286,
       "Precision": 0.9286,
       "Recall": 1.0,
       "F1-Score": 0.963
@@ -74,7 +71,6 @@
       "PCK@0.05": 1.0,
       "PCK@0.1": 1.0,
       "OKS": 0.9068,
-      "Accuracy": 0.9286,
       "Precision": 0.9286,
       "Recall": 1.0,
       "F1-Score": 0.963
@@ -83,7 +79,6 @@
       "PCK@0.05": 1.0,
       "PCK@0.1": 1.0,
       "OKS": 0.9912,
-      "Accuracy": 1.0,
       "Precision": 1.0,
       "Recall": 1.0,
       "F1-Score": 1.0
@@ -92,7 +87,6 @@
       "PCK@0.05": 1.0,
       "PCK@0.1": 1.0,
       "OKS": 0.9849,
-      "Accuracy": 1.0,
       "Precision": 1.0,
       "Recall": 1.0,
       "F1-Score": 1.0
@@ -101,7 +95,6 @@
       "PCK@0.05": 1.0,
       "PCK@0.1": 1.0,
       "OKS": 0.975,
-      "Accuracy": 1.0,
       "Precision": 1.0,
       "Recall": 1.0,
       "F1-Score": 1.0
@@ -110,7 +103,6 @@
       "PCK@0.05": 1.0,
       "PCK@0.1": 1.0,
       "OKS": 0.9754,
-      "Accuracy": 1.0,
       "Precision": 1.0,
       "Recall": 1.0,
       "F1-Score": 1.0
@@ -119,7 +111,6 @@
       "PCK@0.05": 1.0,
       "PCK@0.1": 1.0,
       "OKS": 0.9889,
-      "Accuracy": 1.0,
       "Precision": 1.0,
       "Recall": 1.0,
       "F1-Score": 1.0
@@ -128,7 +119,6 @@
       "PCK@0.05": 1.0,
       "PCK@0.1": 1.0,
       "OKS": 0.971,
-      "Accuracy": 1.0,
       "Precision": 1.0,
       "Recall": 1.0,
       "F1-Score": 1.0
@@ -137,7 +127,6 @@
       "PCK@0.05": 1.0,
       "PCK@0.1": 1.0,
       "OKS": 0.9878,
-      "Accuracy": 1.0,
       "Precision": 1.0,
       "Recall": 1.0,
       "F1-Score": 1.0
@@ -146,7 +135,6 @@
       "PCK@0.05": 1.0,
       "PCK@0.1": 1.0,
       "OKS": 0.9862,
-      "Accuracy": 1.0,
       "Precision": 1.0,
       "Recall": 1.0,
       "F1-Score": 1.0
@@ -155,7 +143,6 @@
       "PCK@0.05": 1.0,
       "PCK@0.1": 1.0,
       "OKS": 0.9272,
-      "Accuracy": 1.0,
       "Precision": 1.0,
       "Recall": 1.0,
       "F1-Score": 1.0
@@ -164,7 +151,6 @@
       "PCK@0.05": 0.6429,
       "PCK@0.1": 1.0,
       "OKS": 0.6662,
-      "Accuracy": 0.4737,
       "Precision": 0.6429,
       "Recall": 0.6429,
       "F1-Score": 0.6429
@@ -173,7 +159,6 @@
       "PCK@0.05": 1.0,
       "PCK@0.1": 1.0,
       "OKS": 0.9458,
-      "Accuracy": 1.0,
       "Precision": 1.0,
       "Recall": 1.0,
       "F1-Score": 1.0
@@ -182,7 +167,6 @@
       "PCK@0.05": 1.0,
       "PCK@0.1": 1.0,
       "OKS": 0.9798,
-      "Accuracy": 1.0,
       "Precision": 1.0,
       "Recall": 1.0,
       "F1-Score": 1.0
@@ -191,7 +175,6 @@
       "PCK@0.05": 1.0,
       "PCK@0.1": 1.0,
       "OKS": 0.9556,
-      "Accuracy": 1.0,
       "Precision": 1.0,
       "Recall": 1.0,
       "F1-Score": 1.0
@@ -200,7 +183,6 @@
       "PCK@0.05": 1.0,
       "PCK@0.1": 1.0,
       "OKS": 0.9206,
-      "Accuracy": 1.0,
       "Precision": 1.0,
       "Recall": 1.0,
       "F1-Score": 1.0
@@ -209,7 +191,6 @@
       "PCK@0.05": 1.0,
       "PCK@0.1": 1.0,
       "OKS": 0.9408,
-      "Accuracy": 1.0,
       "Precision": 1.0,
       "Recall": 1.0,
       "F1-Score": 1.0
@@ -218,7 +199,6 @@
       "PCK@0.05": 1.0,
       "PCK@0.1": 1.0,
       "OKS": 0.9604,
-      "Accuracy": 1.0,
       "Precision": 1.0,
       "Recall": 1.0,
       "F1-Score": 1.0
@@ -227,7 +207,6 @@
       "PCK@0.05": 1.0,
       "PCK@0.1": 1.0,
       "OKS": 0.972,
-      "Accuracy": 1.0,
       "Precision": 1.0,
       "Recall": 1.0,
       "F1-Score": 1.0
@@ -236,7 +215,6 @@
       "PCK@0.05": 1.0,
       "PCK@0.1": 1.0,
       "OKS": 0.9878,
-      "Accuracy": 1.0,
       "Precision": 1.0,
       "Recall": 1.0,
       "F1-Score": 1.0
@@ -245,7 +223,6 @@
       "PCK@0.05": 1.0,
       "PCK@0.1": 1.0,
       "OKS": 0.9926,
-      "Accuracy": 1.0,
       "Precision": 1.0,
       "Recall": 1.0,
       "F1-Score": 1.0
@@ -254,7 +231,6 @@
       "PCK@0.05": 1.0,
       "PCK@0.1": 1.0,
       "OKS": 0.9909,
-      "Accuracy": 1.0,
       "Precision": 1.0,
       "Recall": 1.0,
       "F1-Score": 1.0
@@ -263,7 +239,6 @@
       "PCK@0.05": 1.0,
       "PCK@0.1": 1.0,
       "OKS": 0.9882,
-      "Accuracy": 1.0,
       "Precision": 1.0,
       "Recall": 1.0,
       "F1-Score": 1.0
@@ -272,7 +247,6 @@
       "PCK@0.05": 1.0,
       "PCK@0.1": 1.0,
       "OKS": 0.99,
-      "Accuracy": 1.0,
       "Precision": 1.0,
       "Recall": 1.0,
       "F1-Score": 1.0
@@ -281,7 +255,6 @@
       "PCK@0.05": 1.0,
       "PCK@0.1": 1.0,
       "OKS": 0.9769,
-      "Accuracy": 1.0,
       "Precision": 1.0,
       "Recall": 1.0,
       "F1-Score": 1.0
@@ -290,7 +263,6 @@
       "PCK@0.05": 1.0,
       "PCK@0.1": 1.0,
       "OKS": 0.9829,
-      "Accuracy": 1.0,
       "Precision": 1.0,
       "Recall": 1.0,
       "F1-Score": 1.0
@@ -299,7 +271,6 @@
       "PCK@0.05": 1.0,
       "PCK@0.1": 1.0,
       "OKS": 0.994,
-      "Accuracy": 1.0,
       "Precision": 1.0,
       "Recall": 1.0,
       "F1-Score": 1.0
@@ -308,7 +279,6 @@
       "PCK@0.05": 0.9286,
       "PCK@0.1": 1.0,
       "OKS": 0.8357,
-      "Accuracy": 0.8667,
       "Precision": 0.9286,
       "Recall": 0.9286,
       "F1-Score": 0.9286
@@ -317,7 +287,6 @@
       "PCK@0.05": 1.0,
       "PCK@0.1": 1.0,
       "OKS": 0.9731,
-      "Accuracy": 1.0,
       "Precision": 1.0,
       "Recall": 1.0,
       "F1-Score": 1.0
@@ -326,7 +295,6 @@
       "PCK@0.05": 1.0,
       "PCK@0.1": 1.0,
       "OKS": 0.9651,
-      "Accuracy": 1.0,
       "Precision": 1.0,
       "Recall": 1.0,
       "F1-Score": 1.0
@@ -335,7 +303,6 @@
       "PCK@0.05": 1.0,
       "PCK@0.1": 1.0,
       "OKS": 0.8323,
-      "Accuracy": 1.0,
       "Precision": 1.0,
       "Recall": 1.0,
       "F1-Score": 1.0
@@ -344,7 +311,6 @@
       "PCK@0.05": 1.0,
       "PCK@0.1": 1.0,
       "OKS": 0.9677,
-      "Accuracy": 1.0,
       "Precision": 1.0,
       "Recall": 1.0,
       "F1-Score": 1.0
@@ -353,7 +319,6 @@
       "PCK@0.05": 1.0,
       "PCK@0.1": 1.0,
       "OKS": 0.9443,
-      "Accuracy": 0.8571,
       "Precision": 0.8571,
       "Recall": 1.0,
       "F1-Score": 0.9231
@@ -362,7 +327,6 @@
       "PCK@0.05": 1.0,
       "PCK@0.1": 1.0,
       "OKS": 0.8592,
-      "Accuracy": 1.0,
       "Precision": 1.0,
       "Recall": 1.0,
       "F1-Score": 1.0
@@ -371,7 +335,6 @@
       "PCK@0.05": 1.0,
       "PCK@0.1": 1.0,
       "OKS": 0.9952,
-      "Accuracy": 1.0,
       "Precision": 1.0,
       "Recall": 1.0,
       "F1-Score": 1.0
@@ -380,7 +343,6 @@
       "PCK@0.05": 1.0,
       "PCK@0.1": 1.0,
       "OKS": 0.9885,
-      "Accuracy": 1.0,
       "Precision": 1.0,
       "Recall": 1.0,
       "F1-Score": 1.0
@@ -389,7 +351,6 @@
       "PCK@0.05": 1.0,
       "PCK@0.1": 1.0,
       "OKS": 0.9889,
-      "Accuracy": 1.0,
       "Precision": 1.0,
       "Recall": 1.0,
       "F1-Score": 1.0
@@ -398,7 +359,6 @@
       "PCK@0.05": 1.0,
       "PCK@0.1": 1.0,
       "OKS": 0.9825,
-      "Accuracy": 1.0,
       "Precision": 1.0,
       "Recall": 1.0,
       "F1-Score": 1.0
@@ -407,7 +367,6 @@
       "PCK@0.05": 1.0,
       "PCK@0.1": 1.0,
       "OKS": 0.9675,
-      "Accuracy": 0.8571,
       "Precision": 0.8571,
       "Recall": 1.0,
       "F1-Score": 0.9231
@@ -416,7 +375,6 @@
       "PCK@0.05": 1.0,
       "PCK@0.1": 1.0,
       "OKS": 0.9799,
-      "Accuracy": 1.0,
       "Precision": 1.0,
       "Recall": 1.0,
       "F1-Score": 1.0
@@ -425,7 +383,6 @@
       "PCK@0.05": 1.0,
       "PCK@0.1": 1.0,
       "OKS": 0.9806,
-      "Accuracy": 1.0,
       "Precision": 1.0,
       "Recall": 1.0,
       "F1-Score": 1.0
@@ -434,7 +391,6 @@
       "PCK@0.05": 1.0,
       "PCK@0.1": 1.0,
       "OKS": 0.9854,
-      "Accuracy": 1.0,
       "Precision": 1.0,
       "Recall": 1.0,
       "F1-Score": 1.0
@@ -443,7 +399,6 @@
       "PCK@0.05": 1.0,
       "PCK@0.1": 1.0,
       "OKS": 0.9913,
-      "Accuracy": 1.0,
       "Precision": 1.0,
       "Recall": 1.0,
       "F1-Score": 1.0
@@ -452,7 +407,6 @@
       "PCK@0.05": 0.0,
       "PCK@0.1": 0.0,
       "OKS": 0.0,
-      "Accuracy": 0.0,
       "Precision": 0.0,
       "Recall": 0.0,
       "F1-Score": 0.0
@@ -461,7 +415,6 @@
       "PCK@0.05": 1.0,
       "PCK@0.1": 1.0,
       "OKS": 0.9809,
-      "Accuracy": 1.0,
       "Precision": 1.0,
       "Recall": 1.0,
       "F1-Score": 1.0
@@ -470,7 +423,6 @@
       "PCK@0.05": 1.0,
       "PCK@0.1": 1.0,
       "OKS": 0.9826,
-      "Accuracy": 1.0,
       "Precision": 1.0,
       "Recall": 1.0,
       "F1-Score": 1.0
@@ -479,7 +431,6 @@
       "PCK@0.05": 1.0,
       "PCK@0.1": 1.0,
       "OKS": 0.986,
-      "Accuracy": 1.0,
       "Precision": 1.0,
       "Recall": 1.0,
       "F1-Score": 1.0
@@ -488,7 +439,6 @@
       "PCK@0.05": 0.973,
       "PCK@0.1": 0.9811,
       "OKS": 0.9432,
-      "Accuracy": 0.9637,
       "Precision": 0.9835,
       "Recall": 0.9795,
       "F1-Score": 0.9815

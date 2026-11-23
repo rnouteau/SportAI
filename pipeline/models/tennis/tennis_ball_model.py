@@ -50,9 +50,7 @@ class TennisBallModel(Model[TennisAnalysis]):
             if coords is not None:
                 h, w = frame.shape[:2]
                 coords = (int(coords[0] * w / in_w), int(coords[1] * h / in_h))
-                ball = TennisBall.create()
-                ball.position = coords
-                ball.confidence = float(heatmaps_np[1].max())
+                ball = TennisBall(position=[float(coords[0]), float(coords[1])], confidence=float(heatmaps_np[1].max()))
                 analysis.frames[frame_number].ball = ball
 
     def _resize(self, keys: list[str], results: dict) -> dict:

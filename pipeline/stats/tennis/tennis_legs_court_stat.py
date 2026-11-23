@@ -28,11 +28,11 @@ class TennisLegsCourtStat(Stat[TennisAnalysis]):
             if homo is None or homo.matrix is None:
                 continue
             for player in frame.players:
-                image_pt = player.legs.image
-                if image_pt is None:
+                feet = player.feet
+                if feet is None:
                     continue
-                player.legs.court = CourtPosition.from_image(
-                    (image_pt.x, image_pt.y),
+                player.court = CourtPosition.from_image(
+                    (feet.x, feet.y),
                     np.asarray(homo.matrix, dtype=np.float64),
                     schema,
                 )

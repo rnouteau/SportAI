@@ -1,26 +1,24 @@
-from typing import Generic, TypeVar
+from dataclasses import dataclass, field
+from typing import ClassVar, Generic, Self, TypeVar, cast
 
 from pipeline.objects.player import Player
 
 PlayerT = TypeVar("PlayerT", bound=Player)
 
 
+@dataclass
 class FinalStats(Generic[PlayerT]):
-    """Whole-video results, stored under ``analysis.data["final_stats"]``."""
+    """Whole-video results (``analysis.final_stats``), e.g. the players and their ids."""
 
-    player_class: type[PlayerT]
-
-    def __init__(self, data: dict) -> None:
-        self.data = data
+    player_class: ClassVar[type[Player]] = Player
+    players: list[PlayerT] = field(default_factory=list)
 
     @classmethod
-    def empty(cls) -> dict:
-        return {"players": []}
+    def from_dict(cls, data: dict) -> Self:
+        players = cast(
+            list[PlayerT], [cls.player_class.from_dict(p) for p in data.get("players") or []]
+        )
+        return cls(players=players)
 
-    @property
-    def players(self) -> list[PlayerT]:
-        return [self.player_class(data) for data in self.data.get("players") or []]
-
-    @players.setter
-    def players(self, players: list[PlayerT] | None) -> None:
-        self.data["players"] = [player.data for player in (players or [])]
+    def to_dict(self) -> dict:
+        return {"players": [p.to_dict() for p in self.players]}

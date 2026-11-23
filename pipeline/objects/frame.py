@@ -1,16 +1,14 @@
+from dataclasses import dataclass
+from typing import Self
+
+
+@dataclass
 class Frame:
-    def __init__(self, data: dict) -> None:
-        self.data = data
+    id: int
 
     @classmethod
-    def empty(cls, frame_id: int) -> dict:
-        """Sport-agnostic empty frame dict (override in sport Frame subclasses)."""
-        return {"id": frame_id}
+    def from_dict(cls, data: dict) -> Self:
+        return cls(id=data["id"])
 
-    @property
-    def id(self) -> int:
-        return self.data["id"]
-
-    @id.setter
-    def id(self, value: int) -> None:
-        self.data["id"] = value
+    def to_dict(self) -> dict:
+        return {"id": self.id}

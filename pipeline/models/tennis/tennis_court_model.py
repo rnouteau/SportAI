@@ -161,7 +161,7 @@ class TennisCourtModel(Model[TennisAnalysis]):
                 min_conf=self.min_conf,
                 ransac_reproj_threshold=self.ransac_px,
             )
-            homo = TennisHomography.create(keypoints=pts, confidences=confs)
+            homo = TennisHomography(keypoints=pts, confidences=confs, matrix=h_mat.tolist() if h_mat is not None else None)
             if h_mat is not None:
                 homo.matrix = h_mat.tolist()
             analysis.frames[frame_id].homography = homo

@@ -16,7 +16,7 @@ def side_of(court_y: float | None) -> str | None:
 
 
 class TennisSideStat(Stat[TennisAnalysis]):
-    """Write ``player.side`` on every frame from the feet on the court (``legs.court.y``).
+    """Write ``player.side`` on every frame from the feet on the court (``player.court.y``).
 
     Needs ``TennisLegsCourtStat`` before it. Players without a court position (no
     homography on that frame) get no side.
@@ -30,8 +30,8 @@ class TennisSideStat(Stat[TennisAnalysis]):
         logger.info("Running TennisSideStat")
         n_sides = 0
         for frame in analysis.frames:
-            for player in frame.players:  # views on frame.data: the side is written in place
-                court = player.legs.court
+            for player in frame.players:  # players are stored objects: the side is written in place
+                court = player.court
                 player.side = side_of(court.y if court is not None else None)
                 n_sides += player.side is not None
         if n_sides == 0:

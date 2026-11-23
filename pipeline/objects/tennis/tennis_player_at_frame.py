@@ -1,24 +1,28 @@
+from dataclasses import dataclass
+from typing import Self
+
 from pipeline.objects.player_at_frame import PlayerAtFrame
 
 NEAR, FAR = "near", "far"
 SIDES = (NEAR, FAR)
 
 
+@dataclass
 class TennisPlayerAtFrame(PlayerAtFrame):
-    def __init__(self, data: dict) -> None:
-        super().__init__(data)
+    side: str | None = None
 
-    @property
-    def side(self) -> str | None:
-        """Half of the court on this frame: ``"near"`` (court y < 0) or ``"far"`` (y > 0)."""
-        side = self.data.get("side")
-        return str(side) if side is not None else None
+    def __post_init__(self) -> None:
+        if self.side is not None and self.side not in SIDES:
+            raise ValueError(f"side must be one of {SIDES}, got {self.side!r}")
 
-    @side.setter
-    def side(self, side: str | None) -> None:
-        if side is None:
-            self.data.pop("side", None)
-            return
-        if side not in SIDES:
-            raise ValueError(f"side must be one of {SIDES}, got {side!r}")
-        self.data["side"] = side
+    @classmethod
+    def from_dict(cls, data: dict) -> Self:
+        player = super().from_dict(data)
+        player.side = data.get("side")
+        return player
+
+    def to_dict(self) -> dict:
+        d = super().to_dict()
+        if self.side is not None:
+            d["side"] = self.side
+        return d

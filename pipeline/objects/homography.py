@@ -1,49 +1,28 @@
+from dataclasses import dataclass
 from typing import Self
 
 
+@dataclass
 class Homography:
-    def __init__(self, data: dict) -> None:
-        self.data = data
+    keypoints: list[list[float]] | None = None
+    confidences: list[float] | None = None
+    matrix: list[list[float]] | None = None
 
     @classmethod
-    def create(cls, **fields: object) -> Self:
-        """Build from free kwargs; new fields (e.g. matrix) use setters."""
-        return cls(dict(fields))
+    def from_dict(cls, data: dict) -> Self:
+        return cls(
+            keypoints=data.get("keypoints"),
+            confidences=data.get("confidences"),
+            matrix=data.get("matrix"),
+        )
 
-    @property
-    def keypoints(self) -> list[list[float]] | None:
-        return self.data.get("keypoints")
-
-    @keypoints.setter
-    def keypoints(self, value: list[list[float]] | list[tuple[float, float]] | None) -> None:
-        if value is None:
-            self.data.pop("keypoints", None)
-            return
-        pts: list[list[float]] = []
-        for keypoint in value:
-            if len(keypoint) < 2:
-                raise ValueError(f"Each keypoint must be [x, y], got {keypoint!r}")
-            pts.append([float(keypoint[0]), float(keypoint[1])])
-        self.data["keypoints"] = pts
-
-    @property
-    def confidences(self) -> list[float] | None:
-        return self.data.get("confidences")
-
-    @confidences.setter
-    def confidences(self, value: list[float] | None) -> None:
-        if value is None:
-            self.data.pop("confidences", None)
-        else:
-            self.data["confidences"] = [float(c) for c in value]
-
-    @property
-    def matrix(self) -> list[list[float]] | None:
-        return self.data.get("matrix")
-
-    @matrix.setter
-    def matrix(self, value: list[list[float]] | None) -> None:
-        if value is None:
-            self.data.pop("matrix", None)
-        else:
-            self.data["matrix"] = [[float(v) for v in row] for row in value]
+    def to_dict(self) -> dict:
+        """Fields left at None are not written (e.g. no matrix when RANSAC failed)."""
+        d: dict = {}
+        if self.keypoints is not None:
+            d["keypoints"] = [[float(kp[0]), float(kp[1])] for kp in self.keypoints]
+        if self.confidences is not None:
+            d["confidences"] = [float(c) for c in self.confidences]
+        if self.matrix is not None:
+            d["matrix"] = [[float(v) for v in row] for row in self.matrix]
+        return d

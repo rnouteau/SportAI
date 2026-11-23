@@ -10,8 +10,8 @@ Pages written to ``--wiki-dir`` (the checked-out ``<repo>.wiki`` repository):
 - ``nrt-history.json``  every TOTAL metric of every run (read, updated, written back)
 
 Each suite is found at ``<reports-dir>/<suite id>/report.json`` (written by
-``tests/nrt/harness.py``). Suites without a report are kept on the wiki with their
-history but marked as not run.
+``tests/nrt/harness.py``); the suites are listed in ``tests/nrt/suites.py``. Suites
+without a report are kept on the wiki with their history but marked as not run.
 
     python scripts/render_wiki_home.py --reports-dir outputs/tests --wiki-dir wiki-repo \
         --commit "$SHA" --run-url "$URL" --workflow "NRT Nightly" --conclusion success
@@ -22,9 +22,14 @@ from __future__ import annotations
 import argparse
 import json
 import math
+import sys
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
+
+# The suite registry lives with the NRT tests; this script runs from any directory.
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from tests.nrt.suites import LEGACY_SUITE_IDS, SUITES, Suite  # noqa: E402
 
 HISTORY_FILE = "nrt-history.json"
 HISTORY_VERSION = 2
@@ -34,56 +39,6 @@ TREND_POINTS = 10
 TOTAL = "TOTAL"
 DEFAULT_TOLERANCE = 0.005
 
-
-@dataclass(frozen=True)
-class Suite:
-    id: str  # folder name under outputs/tests
-    title: str
-    page: str  # wiki page name (file name without .md)
-    main_metric: str
-    description: str
-    lower_is_better: frozenset[str] = frozenset()
-    count_metrics: frozenset[str] = frozenset()  # shown as integers
-
-
-SUITES: tuple[Suite, ...] = (
-    Suite(
-        id="tennis_ball_detection",
-        title="Tennis ball detection",
-        page="Tennis-ball-detection",
-        main_metric="F1-Score",
-        description="TrackNet ball position per frame, matched to the annotated ball.",
-    ),
-    Suite(
-        id="tennis_player_detection",
-        title="Tennis player detection",
-        page="Tennis-player-detection",
-        main_metric="F1-Score",
-        description="Player boxes per frame, matched to the annotated boxes (IoU >= 0.5).",
-    ),
-    Suite(
-        id="tennis_player_tracking",
-        title="Tennis player tracking",
-        page="Tennis-player-tracking",
-        main_metric="IDF1",
-        description=(
-            "Player identities over time (MOT metrics): IDF1 = share of time each player "
-            "keeps the right id; ID switches = times an id jumps to another person."
-        ),
-        lower_is_better=frozenset({"ID switches"}),
-        count_metrics=frozenset({"ID switches"}),
-    ),
-    Suite(
-        id="tennis_court_detection",
-        title="Tennis court detection",
-        page="Tennis-court-detection",
-        main_metric="F1-Score",
-        description="The 14 court keypoints, matched to the annotation (PCK, OKS, F1).",
-    ),
-)
-SUITES_BY_ID = {suite.id: suite for suite in SUITES}
-# Suite ids used by older versions of this script.
-LEGACY_SUITE_IDS = {"tennis_ball_tracking": "tennis_ball_detection"}
 
 STATUS_LABELS = {
     "same": "✅ same as baseline",

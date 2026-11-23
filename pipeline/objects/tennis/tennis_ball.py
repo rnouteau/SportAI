@@ -1,14 +1,21 @@
+from dataclasses import dataclass
+from typing import Self
+
 from pipeline.objects.ball import Ball
 
 
+@dataclass
 class TennisBall(Ball):
-    def __init__(self, data: dict) -> None:
-        super().__init__(data)
+    velocity: float | None = None
 
-    @property
-    def velocity(self) -> float | None:
-        return self.data.get("velocity", None)
+    @classmethod
+    def from_dict(cls, data: dict) -> Self:
+        ball = super().from_dict(data)
+        ball.velocity = data.get("velocity")
+        return ball
 
-    @velocity.setter
-    def velocity(self, value: float | None) -> None:
-        self.data["velocity"] = value
+    def to_dict(self) -> dict:
+        d = super().to_dict()
+        if self.velocity is not None:
+            d["velocity"] = float(self.velocity)
+        return d

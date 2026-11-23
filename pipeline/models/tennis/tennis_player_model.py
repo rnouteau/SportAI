@@ -82,9 +82,6 @@ class TennisPlayerModel(Model[TennisAnalysis]):
                 ids = [int(v) for v in _to_numpy(boxes.id)] if boxes.id is not None else None
                 players = []
                 for i in confs.argsort()[::-1][: self.max_players]:
-                    player = TennisPlayerAtFrame.create(
-                        position=xyxy[i].tolist(), confidence=float(confs[i])
-                    )
-                    player.track_id = ids[i] if ids is not None else None
+                    player = TennisPlayerAtFrame(bbox=xyxy[i].tolist(),confidence=float(confs[i]),track_id=ids[i] if ids is not None else None)
                     players.append(player)
                 analysis.frames[frame_id].players = players

@@ -7,7 +7,6 @@ from pipeline.video_reader import VideoReader
 from tests.helpers import make_synthetic_video
 
 
-@pytest.mark.integration
 def test_read_synthetic_video_metadata(tmp_path: Path) -> None:
     video_path = make_synthetic_video(tmp_path / "clip.mp4")
 
@@ -23,7 +22,6 @@ def test_read_synthetic_video_metadata(tmp_path: Path) -> None:
         video_reader.release()
 
 
-@pytest.mark.integration
 def test_read_frame_returns_image(tmp_path: Path) -> None:
     video_path = make_synthetic_video(tmp_path / "clip.mp4", n_frames=3, size=(64, 48))
 
@@ -38,7 +36,6 @@ def test_read_frame_returns_image(tmp_path: Path) -> None:
         reader.release()
 
 
-@pytest.mark.integration
 def test_read_frame_out_of_bounds_raises(tmp_path: Path) -> None:
     video_path = make_synthetic_video(tmp_path / "clip.mp4", n_frames=3)
 
@@ -52,7 +49,6 @@ def test_read_frame_out_of_bounds_raises(tmp_path: Path) -> None:
         reader.release()
 
 
-@pytest.mark.integration
 def test_release_closes_capture(tmp_path: Path) -> None:
     video_path = make_synthetic_video(tmp_path / "clip.mp4", n_frames=2)
 
@@ -62,7 +58,6 @@ def test_release_closes_capture(tmp_path: Path) -> None:
     reader.release()
 
 
-@pytest.mark.integration
 def test_iter_frames_length_and_order(tmp_path: Path) -> None:
     n_frames = 4
     video_path = make_synthetic_video(tmp_path / "clip.mp4", n_frames=n_frames, size=(32, 24))
@@ -79,7 +74,6 @@ def test_iter_frames_length_and_order(tmp_path: Path) -> None:
         random_access.release()
 
 
-@pytest.mark.integration
 def test_iter_triplets_length_and_edges(tmp_path: Path) -> None:
     n_frames = 5
     video_path = make_synthetic_video(tmp_path / "clip.mp4", n_frames=n_frames)
@@ -101,7 +95,6 @@ def test_iter_triplets_length_and_edges(tmp_path: Path) -> None:
         reader.release()
 
 
-@pytest.mark.integration
 def test_iter_triplets_matches_read_frame(tmp_path: Path) -> None:
     n_frames = 6
     video_path = make_synthetic_video(tmp_path / "clip.mp4", n_frames=n_frames, size=(32, 24))
@@ -120,7 +113,6 @@ def test_iter_triplets_matches_read_frame(tmp_path: Path) -> None:
         random_access.release()
 
 
-@pytest.mark.integration
 def test_iter_triplets_single_frame(tmp_path: Path) -> None:
     video_path = make_synthetic_video(tmp_path / "clip.mp4", n_frames=1)
     reader = VideoReader(str(video_path))

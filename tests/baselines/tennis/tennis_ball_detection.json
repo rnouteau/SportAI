@@ -2,9 +2,9 @@
   "context": {
     "device": "cpu",
     "dataset_revision": "v1",
-    "weights": "TENNIS_BALL_MODEL_04_11_2026.pt",
-    "threshold": 0.5,
-    "min_dist": 10
+    "TennisBallModel.weights": "TENNIS_BALL_MODEL_04_11_2026.pt",
+    "TennisBallModel.threshold": 0.5,
+    "evaluation.min_dist": 10
   },
   "videos": {
     "Fonseca vs Djokovic ｜ Full match ｜ Roland-Garros Round 3 2026 [n2zjuuvgkGY]_cut_0_825.mp4": {

@@ -1,7 +1,7 @@
 """Pick the two singles players among everyone the tracker follows — without a court zone.
 
 The decision is taken per tracker id over the whole video, from the feet projected on
-the court (``legs.court``, from ``TennisLegsCourtStat``) and the side of the court on
+the court (``player.court``, from ``TennisLegsCourtStat``) and the side of the court on
 each frame (``player.side``, from ``TennisSideStat``). Both must run first:
 
 - **side**: share of the id's frames in the near or far half; it must be clear
@@ -41,7 +41,6 @@ from dataclasses import dataclass, field
 from loguru import logger
 
 from pipeline.objects.tennis.tennis_analysis import TennisAnalysis
-from pipeline.objects.tennis.tennis_final_stats import TennisFinalStats
 from pipeline.objects.tennis.tennis_player import TennisPlayer
 from pipeline.objects.tennis.tennis_player_at_frame import FAR, NEAR, TennisPlayerAtFrame
 from pipeline.stats.stat import Stat
@@ -120,8 +119,8 @@ def collect_tracks(analysis: TennisAnalysis) -> tuple[dict[int, Track], int]:
         if homo is not None and homo.matrix is not None:
             frames_with_court += 1
         for player in frame.players:
-            court = player.legs.court
-            if player.track_id is None or court is None or court.x is None or court.y is None:
+            court = player.court
+            if player.track_id is None or court is None:
                 continue
             track = tracks.setdefault(player.track_id, Track(player.track_id))
             track.positions[frame.id] = (court.x, court.y)
@@ -252,15 +251,13 @@ def apply_selection(analysis: TennisAnalysis, selection: dict[str, list[int]]) -
                 best[pid] = player
         frame.players = [best[pid] for pid in sorted(best)]
 
-    stats = TennisFinalStats(analysis.final_stats)
-    final_players = []
-    for side, tids in selection.items():
-        final_player = TennisPlayer.create()
-        final_player.id = PLAYER_IDS[side]
-        final_player.name = PLAYER_NAME[side]
-        final_player.track_ids = tids
-        final_players.append(final_player)
-    stats.players = sorted(final_players, key=lambda p: p.id or 0)
+    analysis.final_stats.players = sorted(
+        (
+            TennisPlayer(id=PLAYER_IDS[side], name=PLAYER_NAME[side], track_ids=tids)
+            for side, tids in selection.items()
+        ),
+        key=lambda p: p.id,
+    )
 
 
 class TennisPlayerSelectorStat(Stat[TennisAnalysis]):
@@ -288,7 +285,7 @@ class TennisPlayerSelectorStat(Stat[TennisAnalysis]):
         if not any(track.sides for track in tracks.values()):
             logger.warning("No player side (TennisSideStat missing?): players left unchanged")
             return
-        fps = float((analysis.data.get("video") or {}).get("fps") or DEFAULT_FPS)
+        fps = float((analysis.video or {}).get("fps") or DEFAULT_FPS)
         selection = select_players(tracks, frames_with_court, fps, self.selector_config)
         logger.info(f"Selected players: {selection}")
         apply_selection(analysis, selection)

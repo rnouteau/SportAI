@@ -56,7 +56,7 @@ def _draw_label(frame: np.ndarray, text: str, x: int, y: int, color: tuple[int, 
 
 def _draw_ball(frame: np.ndarray, analysis_frame) -> None:
     ball = analysis_frame.ball
-    if ball is None or ball.position is None or len(ball.position) < 2:
+    if ball is None or len(ball.position) < 2:
         return
     x, y = int(round(ball.position[0])), int(round(ball.position[1]))
     cv2.circle(frame, (x, y), 6, BALL_COLOR, 2, cv2.LINE_AA)
@@ -87,12 +87,11 @@ def _draw_players(frame: np.ndarray, analysis_frame) -> None:
             if label:
                 _draw_label(frame, label, x0, y0 - 2, color)
 
-        legs = player.legs
-        image_pt = legs.image
+        image_pt = player.feet
         if image_pt is not None:
             px, py = int(round(image_pt.x)), int(round(image_pt.y))
             cv2.circle(frame, (px, py), 4, LEGS_COLOR, -1, cv2.LINE_AA)
-            court = legs.court
+            court = player.court
             if court is not None:
                 cv2.putText(
                     frame,

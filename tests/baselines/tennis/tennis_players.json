@@ -1,0 +1,52 @@
+{
+  "context": {
+    "device": "cpu",
+    "dataset_revision": "v4",
+    "TennisPlayerModel.weights": "yolo11s.pt",
+    "TennisCourtModel.weights": "TENNIS_COURT_MODEL_18_11_2026.pt",
+    "stats": "TennisLegsCourtStat, TennisSideStat, TennisPlayerSelectorStat",
+    "evaluation.iou_threshold": 0.5
+  },
+  "videos": {
+    "A BLOCKBUSTER Final ｜ Jannik Sinner vs Alexander Zverev Full Match Replay ｜ Wimbledon 2026 [3x3eEWCZmWQ]_cut_2094_2720.mp4": {
+      "Precision": 0.9912,
+      "Recall": 0.9912,
+      "F1-Score": 0.9912,
+      "Mean IoU": 0.9608,
+      "IDF1": 0.9912,
+      "ID switches": 0.0,
+      "MOTA": 0.9824,
+      "Role accuracy": 1.0
+    },
+    "Alexander Zverev vs_cut_3_776.mp4": {
+      "Precision": 0.9897,
+      "Recall": 0.9897,
+      "F1-Score": 0.9897,
+      "Mean IoU": 0.923,
+      "IDF1": 0.9897,
+      "ID switches": 0.0,
+      "MOTA": 0.9795,
+      "Role accuracy": 1.0
+    },
+    "Fonseca vs Djokovic ｜ Full match ｜ Roland-Garros Round 3 2026 [n2zjuuvgkGY]_cut_3354_3847.mp4": {
+      "Precision": 1.0,
+      "Recall": 1.0,
+      "F1-Score": 1.0,
+      "Mean IoU": 0.9171,
+      "IDF1": 1.0,
+      "ID switches": 0.0,
+      "MOTA": 1.0,
+      "Role accuracy": 1.0
+    },
+    "TOTAL": {
+      "Precision": 0.993,
+      "Recall": 0.993,
+      "F1-Score": 0.993,
+      "Mean IoU": 0.9342,
+      "IDF1": 0.993,
+      "ID switches": 0.0,
+      "MOTA": 0.9859,
+      "Role accuracy": 1.0
+    }
+  }
+}

@@ -189,7 +189,7 @@ jobs:
           path: ~/.cache/huggingface
           key: hf-${{ hashFiles('tests/configs/nrt/tennis/*.yaml') }}
 
-      - name: Run tennis NRT (ball, players, court, tracking)
+      - name: Run tennis NRT (every suite of tests/nrt/suites.py)
         if: env.HF_TOKEN != ''
         run: python -m pytest tests/nrt/tennis -m nrt -s -rs ${{ inputs.update_baseline && '--update-baseline' || '' }}
 
@@ -200,19 +200,11 @@ jobs:
       - name: Publish summary
         if: always()
         run: |
+          shopt -s nullglob
+          reports=(outputs/tests/*/report.md)
           {
-            echo "## Tennis ball detection"
-            cat outputs/tests/tennis_ball_detection/report.md 2>/dev/null || echo "_No ball report._"
-            echo
-            echo "## Tennis player detection"
-            cat outputs/tests/tennis_player_detection/report.md 2>/dev/null || echo "_No player report._"
-            echo
-            echo "## Tennis court detection"
-            cat outputs/tests/tennis_court_detection/report.md 2>/dev/null || echo "_No court report._"
-            echo
-            echo "## Tennis player tracking"
-            cat outputs/tests/tennis_player_tracking/report.md 2>/dev/null || echo "_No tracking report._"
-
+            if [ ${#reports[@]} -eq 0 ]; then echo "_No NRT report._"; fi
+            for report in "${reports[@]}"; do cat "$report"; echo; done
           } >> "$GITHUB_STEP_SUMMARY"
 
       - uses: actions/upload-artifact@v4
@@ -220,14 +212,8 @@ jobs:
         with:
           name: tennis-nrt-reports
           path: |
-            outputs/tests/tennis_ball_detection
-            outputs/tests/tennis_player_detection
-            outputs/tests/tennis_court_detection
-            outputs/tests/tennis_player_tracking
-            tests/baselines/tennis/tennis_ball_detection.json
-            tests/baselines/tennis/tennis_player_detection.json
-            tests/baselines/tennis/tennis_court_detection.json
-            tests/baselines/tennis/tennis_player_tracking.json
+            outputs/tests
+            tests/baselines/tennis
           if-no-files-found: ignore
 
       - name: Publish wiki
