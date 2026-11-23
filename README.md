@@ -515,6 +515,8 @@ outputs:
   path: ./outputs/tennis/stats.json
   video:
     path: ./outputs/tennis/overlay.mp4   # omit / null → JSON only
+  heatmaps:
+    path: ./outputs/tennis/heatmaps      # one heatmap_player_<id>.png per final player
 ```
 
 | Key | Meaning |
@@ -525,6 +527,7 @@ outputs:
 | `stats[].name` | Optional FQCN stats (same load pattern as models; run before release) |
 | `outputs.path` | Where `save_json` writes the analysis |
 | `outputs.video.path` | Optional annotated MP4 (ball, players/bbox+feet, court). Absent / empty → JSON only |
+| `outputs.heatmaps.path` | Optional folder: one PNG heatmap of the court positions per final player (`pipeline/render/tennis_heatmap.py`). Absent → no heatmap |
 
 ### NRT configs — `tests/configs/nrt/tennis/`
 

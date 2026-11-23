@@ -1,5 +1,6 @@
 import argparse
 import importlib
+from pathlib import Path
 from typing import cast
 
 from loguru import logger
@@ -14,17 +15,32 @@ def load_class(path: str) -> type:
     return getattr(importlib.import_module(module_name), class_name)
 
 
-def _overlay_video_path(config: dict) -> str | None:
+def _output_path(config: dict, key: str) -> Path | None:
+    """``config["outputs"][key]["path"]`` (e.g. ``video``, ``heatmaps``), ``None`` when unset."""
     outputs = config.get("outputs") or {}
-    if not isinstance(outputs, dict):
-        return None
-    video = outputs.get("video")
-    if not isinstance(video, dict):
-        return None
-    path = video.get("path")
+    section = outputs.get(key) if isinstance(outputs, dict) else None
+    path = section.get("path") if isinstance(section, dict) else None
     if isinstance(path, str) and path.strip():
-        return path.strip()
+        return Path(path.strip())
     return None
+
+
+def _render_tennis_outputs(config: dict, video_reader: VideoReader, analysis: Analysis) -> None:
+    """Optional visual outputs: overlay video and player heatmaps (tennis only)."""
+    from pipeline.objects.tennis.tennis_analysis import TennisAnalysis
+
+    if not isinstance(analysis, TennisAnalysis):
+        return
+    overlay_path = _output_path(config, "video")
+    if overlay_path:
+        from pipeline.render.tennis_overlay import render_overlay_video
+
+        render_overlay_video(video_reader, analysis, overlay_path)
+    heatmaps_dir = _output_path(config, "heatmaps")
+    if heatmaps_dir:
+        from pipeline.render.tennis_heatmap import render_heatmaps
+
+        render_heatmaps(analysis, heatmaps_dir)
 
 
 def run_pipeline(
@@ -67,18 +83,12 @@ def run_pipeline(
             logger.exception(f"Error occurred while running stat {stat_name}: {e}")
             raise
 
-    if not test:
-        overlay_path = _overlay_video_path(config)
-        if overlay_path and sport == "tennis":
-            from pipeline.objects.tennis.tennis_analysis import TennisAnalysis
-            from pipeline.render.tennis_overlay import render_overlay_video
-
-            if isinstance(analysis, TennisAnalysis):
-                try:
-                    render_overlay_video(video_reader, analysis, overlay_path)
-                except Exception as e:
-                    logger.exception(f"Error writing overlay video: {e}")
-                    raise
+    if not test and sport == "tennis":
+        try:
+            _render_tennis_outputs(config, video_reader, analysis)
+        except Exception as e:
+            logger.exception(f"Error writing the visual outputs: {e}")
+            raise
 
     video_reader.release()
 

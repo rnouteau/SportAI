@@ -31,3 +31,5 @@ outputs:
   path: ./outputs/tennis/stats.json
   video:
     path: ./outputs/tennis/overlay.mp4
+  heatmaps:
+    path: ./outputs/tennis/heatmaps

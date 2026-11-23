@@ -45,28 +45,36 @@ def test_stats_run_after_the_models(synthetic_video: Callable[..., Path]) -> Non
     assert data["final_stats"]["players"][0]["name"] == "3 balls"
 
 
-def test_player_stats_select_the_two_players(synthetic_video: Callable[..., Path]) -> None:
-    """Tracker → feet on the court → side → selector → movement, fake tracker and homography.
+N_FRAMES, FPS = 40, 10.0
 
-    The homography maps a 320x240 image onto the court: image y=240 → court y=-12 (near
-    baseline), image y=0 → court y=+12 (far baseline). Two walking players and a still
-    line judge on the far side; the line judge must be dropped.
+
+def _two_players_config(**extra: object) -> dict:
+    """Fake tracker + homography for a 320x240 clip of ``N_FRAMES`` frames, player stats on.
+
+    The homography maps the image onto the court: image y=240 → court y=-12 (near
+    baseline), image y=0 → court y=+12 (far baseline). Two players walk 2 px/frame
+    (0.1 m/frame); a line judge stands still on the far side and must be dropped.
     """
-    n_frames, fps = 40, 10.0
     matrix = [[0.05, 0.0, -8.0], [0.0, -0.1, 12.0], [0.0, 0.0, 1.0]]
     tracks = []
-    for f in range(n_frames):
+    for f in range(N_FRAMES):
         step = 2.0 * f
         near = [100.0 + step, 170.0, 120.0 + step, 230.0, 1]
         far = [220.0 - step, 15.0, 235.0 - step, 50.0, 2]
         judge = [300.0, 30.0, 310.0, 60.0, 3]
         tracks.append([near, far, judge])
-    video = synthetic_video(n_frames=n_frames, size=(320, 240))
-    config = pipeline_config(
+    return pipeline_config(
         [("tests.fakes.FakeTrackingModel", {"tracks": tracks, "matrix": matrix})],
         stats=PLAYER_STATS,
+        **extra,
     )
-    assert cv2.VideoCapture(str(video)).get(cv2.CAP_PROP_FPS) == pytest.approx(fps)
+
+
+def test_player_stats_select_the_two_players(synthetic_video: Callable[..., Path]) -> None:
+    """Tracker → feet on the court → side → selector → movement."""
+    video = synthetic_video(n_frames=N_FRAMES, size=(320, 240))
+    config = _two_players_config()
+    assert cv2.VideoCapture(str(video)).get(cv2.CAP_PROP_FPS) == pytest.approx(FPS)
 
     data = run_pipeline("tennis", str(video), config, test=True)
 
@@ -84,6 +92,25 @@ def test_player_stats_select_the_two_players(synthetic_video: Callable[..., Path
     for player in players:
         assert player["max_speed_kmh"] == pytest.approx(3.6, abs=0.1)
         assert player["distance_m"] == pytest.approx(3.9, abs=0.2)
+
+
+# --------------------------------------------------------------------------- heatmaps
+def test_one_heatmap_per_final_player(tmp_path: Path, synthetic_video: Callable[..., Path]) -> None:
+    video = synthetic_video(n_frames=N_FRAMES, size=(320, 240))
+    outputs = {"path": str(tmp_path / "stats.json"), "heatmaps": {"path": str(tmp_path / "maps")}}
+
+    run_pipeline("tennis", str(video), _two_players_config(outputs=outputs), test=False)
+
+    written = sorted(p.name for p in (tmp_path / "maps").iterdir())
+    assert written == ["heatmap_player_1.png", "heatmap_player_2.png"]
+    assert cv2.imread(str(tmp_path / "maps" / "heatmap_player_1.png")) is not None
+
+
+def test_no_heatmap_in_test_mode(tmp_path: Path, synthetic_video: Callable[..., Path]) -> None:
+    video = synthetic_video(n_frames=N_FRAMES, size=(320, 240))
+    outputs = {"path": str(tmp_path / "stats.json"), "heatmaps": {"path": str(tmp_path / "maps")}}
+    assert run_pipeline("tennis", str(video), _two_players_config(outputs=outputs), test=True)
+    assert not (tmp_path / "maps").exists()
 
 
 # --------------------------------------------------------------------------- overlay
