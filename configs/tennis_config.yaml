@@ -24,8 +24,9 @@ models:
         smoothing_reset_ratio: 0.02 # scene-cut reset, fraction of frame diagonal
 stats:
   - name: pipeline.stats.tennis.TennisLegsCourtStat
-  - name: pipeline.stats.tennis.TennisSideStat
+  - name: pipeline.stats.tennis.TennisPlayerSideStat
   - name: pipeline.stats.tennis.TennisPlayerSelectorStat
+  - name: pipeline.stats.tennis.TennisPlayerMovementStat
 outputs:
   path: ./outputs/tennis/stats.json
   video:

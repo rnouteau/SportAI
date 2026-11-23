@@ -81,8 +81,9 @@ SportAI/
 │       ├── stat.py                   # Abstract Stat[AnalysisT] base
 │       └── tennis/
 │           ├── tennis_legs_court_stat.py  # player.court via H + analysis.court_schema
-│           ├── tennis_side_stat.py        # player.side ("near" / "far") on every frame
-│           └── tennis_player_selector_stat.py  # keep the 2 players, player_id + final_stats
+│           ├── tennis_player_side_stat.py      # player.side ("near" / "far") on every frame
+│           ├── tennis_player_selector_stat.py  # keep the 2 players, player_id + final_stats
+│           └── tennis_player_movement_stat.py  # distance_m / mean & max speed (km/h)
 
 
 ├── tests/
@@ -217,7 +218,7 @@ class Stat(ABC, Generic[AnalysisT]):
     def run(self, video_reader: VideoReader, analysis: AnalysisT) -> None: ...
 
 
-class TennisSideStat(Stat[TennisAnalysis]):
+class TennisPlayerSideStat(Stat[TennisAnalysis]):
     def run(self, video_reader: VideoReader, analysis: TennisAnalysis) -> None:
         for frame in analysis.frames:
             for player in frame.players:
@@ -341,7 +342,7 @@ data = run_pipeline(
   ],
   "final_stats": {
     "players": [
-      { "id": 1, "name": "player A", "track_ids": [2, 55] },
+      { "id": 1, "name": "player A", "track_ids": [2, 55], "distance_m": 11.1, "mean_speed_kmh": 4.0, "max_speed_kmh": 7.6 },
       { "id": 2, "name": "player B", "track_ids": [5] }
     ]
   }
@@ -362,7 +363,7 @@ Format rules: `ball` and `homography` are always present (`null` when missing). 
 | `frames[i].players[j]` | `TennisPlayerAtFrame` | `player.bbox`, `player.confidence`, `player.track_id`, `player.player_id`, `player.side`, `player.feet` (computed: bbox bottom-centre, pixels) |
 | `frames[i].players[j].legs.court` | `CourtPosition` | `player.court.x`, `.y` (m), `.distance` (metres to net centre), `.distance_to(other)` |
 | `frames[i].homography` | `TennisHomography` | `keypoints`, `confidences`, `matrix` |
-| `final_stats.players[k]` | `TennisPlayer` | `id`, `name`, `track_ids` |
+| `final_stats.players[k]` | `TennisPlayer` | `id`, `name`, `track_ids`, `distance_m`, `mean_speed_kmh`, `max_speed_kmh` |
 
 Every class is a `@dataclass` with a `from_dict` classmethod and a `to_dict` method. Objects are built once when the analysis is loaded; `frame.players` is a real list (appending to it changes the frame).
 
@@ -471,6 +472,8 @@ for frame in analysis.frames:
             print(frame.id, player.court.distance)
 ```
 
+**`TennisPlayerMovementStat`** (after the selector) writes `distance_m`, `mean_speed_kmh` and `max_speed_kmh` of each final player. Raw court positions jitter by 3-5 cm per frame (the box moves even when the player stands still): summing frame-to-frame steps doubles the distance and gives impossible top speeds (80+ km/h). So the track is cut where the player is missing for more than `max_gap_seconds`, smoothed with a centred moving average over `smoothing_seconds`, and the speed is the displacement over `speed_window_seconds` (all 0.5 s by default). Mean speed = distance / time tracked.
+
 List stats under `stats:` like models (FQCN + optional `config`):
 
 ```yaml
@@ -496,14 +499,18 @@ models:
   - name: pipeline.models.tennis.TennisPlayerModel
     config:
       device: "cuda"
-      weight: "./models/TENNIS_PLAYER_MODEL_17_11_2026.pt"
+      weight: "./models/yolo11s.pt"
+      conf: 0.1
+      tracker: "bytetrack.yaml"
   - name: pipeline.models.tennis.TennisCourtModel
     config:
       device: "cuda"
       weight: "./models/TENNIS_COURT_MODEL_18_11_2026.pt"
-stats:
-  - name: pipeline.stats.tennis.TennisLegsCourtStat
-    config: {}
+stats:                                   # run in this order
+  - name: pipeline.stats.tennis.TennisLegsCourtStat       # player.court (metres)
+  - name: pipeline.stats.tennis.TennisPlayerSideStat      # player.side
+  - name: pipeline.stats.tennis.TennisPlayerSelectorStat  # player_id + final players
+  - name: pipeline.stats.tennis.TennisPlayerMovementStat  # distance / speed
 outputs:
   path: ./outputs/tennis/stats.json
   video:
@@ -541,7 +548,7 @@ models:
       filename: tennis/court/TENNIS_COURT_MODEL_18_11_2026.pt
 stats:
   - name: pipeline.stats.tennis.TennisLegsCourtStat
-  - name: pipeline.stats.tennis.TennisSideStat
+  - name: pipeline.stats.tennis.TennisPlayerSideStat
   - name: pipeline.stats.tennis.TennisPlayerSelectorStat
 dataset:
   local_dir: ./datasets/tennis/player_tracking/test_regression
@@ -961,7 +968,7 @@ Matching **by keypoint id** (0–13) at `match_threshold` × box size: TP / FP /
     "dataset_revision": "v4",
     "TennisPlayerModel.weights": "yolo11s.pt",
     "TennisCourtModel.weights": "TENNIS_COURT_MODEL_18_11_2026.pt",
-    "stats": "TennisLegsCourtStat, TennisSideStat, TennisPlayerSelectorStat",
+    "stats": "TennisLegsCourtStat, TennisPlayerSideStat, TennisPlayerSelectorStat",
     "evaluation.iou_threshold": 0.5
   },
   "videos": {

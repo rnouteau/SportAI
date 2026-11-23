@@ -4,7 +4,7 @@
     "dataset_revision": "v4",
     "TennisPlayerModel.weights": "yolo11s.pt",
     "TennisCourtModel.weights": "TENNIS_COURT_MODEL_18_11_2026.pt",
-    "stats": "TennisLegsCourtStat, TennisSideStat, TennisPlayerSelectorStat",
+    "stats": "TennisLegsCourtStat, TennisPlayerSideStat, TennisPlayerSelectorStat",
     "evaluation.iou_threshold": 0.5
   },
   "videos": {

@@ -6,7 +6,7 @@ import pytest
 
 from pipeline.objects.position import CourtPosition
 from pipeline.objects.tennis.tennis_player_at_frame import TennisPlayerAtFrame
-from pipeline.stats.tennis.tennis_side_stat import TennisSideStat, side_of
+from pipeline.stats.tennis.tennis_player_side_stat import TennisSideStat, side_of
 from tests.helpers import make_tennis_analysis
 
 

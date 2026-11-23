@@ -15,7 +15,7 @@ def side_of(court_y: float | None) -> str | None:
     return NEAR if court_y < 0.0 else FAR
 
 
-class TennisSideStat(Stat[TennisAnalysis]):
+class TennisPlayerSideStat(Stat[TennisAnalysis]):
     """Write ``player.side`` on every frame from the feet on the court (``player.court.y``).
 
     Needs ``TennisLegsCourtStat`` before it. Players without a court position (no
@@ -24,10 +24,10 @@ class TennisSideStat(Stat[TennisAnalysis]):
 
     def __init__(self, config: dict | None = None) -> None:
         super().__init__(config)
-        logger.info("TennisSideStat initialized")
+        logger.info("TennisPlayerSideStat initialized")
 
     def run(self, video_reader: VideoReader, analysis: TennisAnalysis) -> None:
-        logger.info("Running TennisSideStat")
+        logger.info("Running TennisPlayerSideStat")
         n_sides = 0
         for frame in analysis.frames:
             for player in frame.players:  # players are stored objects: the side is written in place

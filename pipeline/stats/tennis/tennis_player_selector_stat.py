@@ -2,7 +2,7 @@
 
 The decision is taken per tracker id over the whole video, from the feet projected on
 the court (``player.court``, from ``TennisLegsCourtStat``) and the side of the court on
-each frame (``player.side``, from ``TennisSideStat``). Both must run first:
+each frame (``player.side``, from ``TennisPlayerSideStat``). Both must run first:
 
 - **side**: share of the id's frames in the near or far half; it must be clear
   (``min_side_ratio``), so a ball kid crossing the court is no one's.
@@ -283,7 +283,7 @@ class TennisPlayerSelectorStat(Stat[TennisAnalysis]):
             )
             return
         if not any(track.sides for track in tracks.values()):
-            logger.warning("No player side (TennisSideStat missing?): players left unchanged")
+            logger.warning("No player side (TennisPlayerSideStat missing?): players left unchanged")
             return
         fps = float((analysis.video or {}).get("fps") or DEFAULT_FPS)
         selection = select_players(tracks, frames_with_court, fps, self.selector_config)

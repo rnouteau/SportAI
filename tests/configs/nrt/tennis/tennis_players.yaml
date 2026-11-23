@@ -14,7 +14,7 @@ models:
       filename: tennis/court/TENNIS_COURT_MODEL_18_11_2026.pt
 stats:
   - name: pipeline.stats.tennis.TennisLegsCourtStat
-  - name: pipeline.stats.tennis.TennisSideStat
+  - name: pipeline.stats.tennis.TennisPlayerSideStat
   - name: pipeline.stats.tennis.TennisPlayerSelectorStat
 dataset:
   local_dir: ./datasets/tennis/player_tracking/test_regression

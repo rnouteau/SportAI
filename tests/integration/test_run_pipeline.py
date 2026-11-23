@@ -19,8 +19,9 @@ BALL = ("tests.fakes.FakeBallModel", {"position": [10.0, 20.0]})
 SCENE = ("tests.fakes.FakeSceneModel", {})
 PLAYER_STATS = [
     "pipeline.stats.tennis.TennisLegsCourtStat",
-    "pipeline.stats.tennis.TennisSideStat",
+    "pipeline.stats.tennis.TennisPlayerSideStat",
     "pipeline.stats.tennis.TennisPlayerSelectorStat",
+    "pipeline.stats.tennis.TennisPlayerMovementStat",
 ]
 
 
@@ -45,7 +46,7 @@ def test_stats_run_after_the_models(synthetic_video: Callable[..., Path]) -> Non
 
 
 def test_player_stats_select_the_two_players(synthetic_video: Callable[..., Path]) -> None:
-    """Tracker → feet on the court → side → selector, with a fake tracker and homography.
+    """Tracker → feet on the court → side → selector → movement, fake tracker and homography.
 
     The homography maps a 320x240 image onto the court: image y=240 → court y=-12 (near
     baseline), image y=0 → court y=+12 (far baseline). Two walking players and a still
@@ -74,10 +75,15 @@ def test_player_stats_select_the_two_players(synthetic_video: Callable[..., Path
         (p["track_id"], p["player_id"], p["side"]) for f in data["frames"] for p in f["players"]
     }
     assert kept == {(1, 1, "near"), (2, 2, "far")}
-    assert data["final_stats"]["players"] == [
-        {"id": 1, "name": "player A", "track_ids": [1]},
-        {"id": 2, "name": "player B", "track_ids": [2]},
+    players = data["final_stats"]["players"]
+    assert [(p["id"], p["name"], p["track_ids"]) for p in players] == [
+        (1, "player A", [1]),
+        (2, "player B", [2]),
     ]
+    # Both walk 2 px/frame = 0.1 m/frame at 10 fps: 1 m/s = 3.6 km/h for 3.9 s.
+    for player in players:
+        assert player["max_speed_kmh"] == pytest.approx(3.6, abs=0.1)
+        assert player["distance_m"] == pytest.approx(3.9, abs=0.2)
 
 
 # --------------------------------------------------------------------------- overlay

@@ -17,7 +17,7 @@ from pipeline.stats.tennis.tennis_player_selector_stat import (
     lateral_factor,
     select_players,
 )
-from pipeline.stats.tennis.tennis_side_stat import TennisSideStat
+from pipeline.stats.tennis.tennis_player_side_stat import TennisPlayerSideStat
 from tests.fakes import IDENTITY
 from tests.helpers import make_tennis_analysis
 
@@ -67,7 +67,7 @@ def _analysis(people: People, n_frames: int = N, with_homography: bool = True) -
 
 
 def _run(analysis: TennisAnalysis, config: dict | None = None) -> TennisAnalysis:
-    TennisSideStat().run(None, analysis)  # type: ignore[arg-type]
+    TennisPlayerSideStat().run(None, analysis)  # type: ignore[arg-type]
     TennisPlayerSelectorStat(config or {}).run(None, analysis)  # type: ignore[arg-type]
     return analysis
 
@@ -109,7 +109,7 @@ def test_side_needs_a_clear_majority() -> None:
     near = _track(1, {0: (0.0, -5.0), 1: (0.0, -6.0)})
     far = _track(2, {0: (0.0, 5.0), 1: (0.0, 6.0)})
     mixed = _track(3, {0: (0.0, -1.0), 1: (0.0, 1.0)})
-    unknown = Track(4, {0: (0.0, 5.0)})  # TennisSideStat did not run
+    unknown = Track(4, {0: (0.0, 5.0)})  # TennisPlayerSideStat did not run
     assert (near.side(0.8), far.side(0.8), mixed.side(0.8)) == ("near", "far", None)
     assert unknown.side(0.8) is None
 
