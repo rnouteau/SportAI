@@ -12,6 +12,8 @@ mlflow.db-*
 *.json
 !tests/baselines/**/*.json
 !tests/fixtures/*.json
+!frontend/**/*.json
+!.vscode/settings.json
 .hypothesis
 models/
 !pipeline/models/

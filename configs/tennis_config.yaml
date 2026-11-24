@@ -28,8 +28,6 @@ stats:
   - name: pipeline.stats.tennis.TennisPlayerSelectorStat
   - name: pipeline.stats.tennis.TennisPlayerMovementStat
 outputs:
-  path: ./outputs/tennis/stats.json
-  video:
-    path: ./outputs/tennis/overlay.mp4
-  heatmaps:
-    path: ./outputs/tennis/heatmaps
+  dir: ./outputs/tennis   # each run writes into <dir>/<analysis id>/ (id = cleaned video name)
+  video: true             # overlay.mp4 (H.264)
+  heatmaps: true          # heatmaps/heatmap_player_<id>.png

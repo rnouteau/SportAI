@@ -1,10 +1,17 @@
-"""Draw tennis analysis predictions onto a video."""
+"""Draw tennis analysis predictions onto a video.
+
+The overlay is encoded in H.264 (``libx264``, ``yuv420p``, ``+faststart``) so that
+browsers can play it in a ``<video>`` tag: OpenCV's ``mp4v`` (MPEG-4 Part 2) is not
+supported by Chrome / Firefox. The encoder is the ffmpeg shipped with the
+``imageio-ffmpeg`` package: nothing to install on the machine.
+"""
 
 from __future__ import annotations
 
 from pathlib import Path
 
 import cv2
+import imageio_ffmpeg
 import numpy as np
 from loguru import logger
 
@@ -153,23 +160,32 @@ def render_overlay_video(
 
     fps = float(video_reader.fps) if video_reader.fps and video_reader.fps > 0 else 25.0
     size = (int(video_reader.width), int(video_reader.height))
-    fourcc = cv2.VideoWriter.fourcc(*"mp4v")
-    writer = cv2.VideoWriter(str(out), fourcc, fps, size)
-    if not writer.isOpened():
-        raise RuntimeError(f"Could not open VideoWriter for {out}")
-
     n_frames = min(len(analysis.frames), video_reader.frame_count)
-    logger.info(f"Writing overlay video to {out} ({n_frames} frames)")
+    logger.info(f"Writing overlay video to {out} ({n_frames} frames, H.264)")
 
-    for frame_id, image in video_reader.iter_frames():
-        if frame_id >= n_frames:
-            break
-        canvas = image.copy()
-        analysis_frame = analysis.frames[frame_id]
-        _draw_ball(canvas, analysis_frame)
-        _draw_players(canvas, analysis_frame)
-        _draw_court(canvas, analysis_frame, analysis)
-        writer.write(canvas)
-
-    writer.release()
+    writer = imageio_ffmpeg.write_frames(
+        str(out),
+        size,
+        fps=fps,
+        codec="libx264",
+        pix_fmt_in="rgb24",
+        pix_fmt_out="yuv420p",  # the pixel format every browser decodes
+        quality=None,  # use the crf below instead of imageio's own quality scale
+        macro_block_size=2,  # yuv420p only needs even sizes
+        output_params=["-preset", "veryfast", "-crf", "23", "-movflags", "+faststart"],
+    )
+    writer.send(None)  # start the ffmpeg process
+    try:
+        for frame_id, image in video_reader.iter_frames():
+            if frame_id >= n_frames:
+                break
+            canvas = image.copy()
+            analysis_frame = analysis.frames[frame_id]
+            _draw_ball(canvas, analysis_frame)
+            _draw_players(canvas, analysis_frame)
+            _draw_court(canvas, analysis_frame, analysis)
+            # OpenCV draws in BGR, ffmpeg expects RGB.
+            writer.send(np.ascontiguousarray(cv2.cvtColor(canvas, cv2.COLOR_BGR2RGB)))
+    finally:
+        writer.close()
     logger.info(f"Overlay video saved: {out}")

@@ -387,8 +387,8 @@ for frame in analysis.frames:
 ### Persistence
 
 ```python
-analysis.save_json("outputs/tennis/stats.json")
-analysis = TennisAnalysis.load_json("outputs/tennis/stats.json")
+analysis.save_json("outputs/tennis/my-clip/stats.json")
+analysis = TennisAnalysis.load_json("outputs/tennis/my-clip/stats.json")
 ```
 
 `save_json` writes `analysis.to_dict()` (NumPy values are converted). `load_json` reads the file and calls `TennisAnalysis.from_dict`. Tests and visualization tools can reload a previous run with the same API. `tests/unit/test_analysis_round_trip.py` checks that `from_dict(...).to_dict()` gives back the sample file `tests/fixtures/tennis_analysis_sample.json` unchanged.
@@ -512,11 +512,9 @@ stats:                                   # run in this order
   - name: pipeline.stats.tennis.TennisPlayerSelectorStat  # player_id + final players
   - name: pipeline.stats.tennis.TennisPlayerMovementStat  # distance / speed
 outputs:
-  path: ./outputs/tennis/stats.json
-  video:
-    path: ./outputs/tennis/overlay.mp4   # omit / null → JSON only
-  heatmaps:
-    path: ./outputs/tennis/heatmaps      # one heatmap_player_<id>.png per final player
+  dir: ./outputs/tennis   # each run writes into <dir>/<analysis id>/
+  video: true             # overlay.mp4 (H.264); false / absent → no video
+  heatmaps: true          # heatmaps/heatmap_player_<id>.png per final player
 ```
 
 | Key | Meaning |
@@ -525,9 +523,9 @@ outputs:
 | `models[].name` | Fully-qualified Python class path |
 | `models[].config` | Passed to `Model.__init__` |
 | `stats[].name` | Optional FQCN stats (same load pattern as models; run before release) |
-| `outputs.path` | Where `save_json` writes the analysis |
-| `outputs.video.path` | Optional annotated MP4 (ball, players/bbox+feet, court). Absent / empty → JSON only |
-| `outputs.heatmaps.path` | Optional folder: one PNG heatmap of the court positions per final player (`pipeline/render/tennis_heatmap.py`). Absent → no heatmap |
+| `outputs.dir` | Root folder of the analyses (default `outputs/<sport>`; `--output_dir` overrides it). A run writes into `<dir>/<analysis id>/`, the id being the video name cleaned for folders and URLs (`analysis_id` in `pipeline/run.py`) |
+| `outputs.video` | `true` → `overlay.mp4`: annotated video (ball, players/bbox+feet, court), H.264 |
+| `outputs.heatmaps` | `true` → `heatmaps/heatmap_player_<id>.png`: court positions of each final player (`pipeline/render/tennis_heatmap.py`) |
 
 ### NRT configs — `tests/configs/nrt/tennis/`
 
@@ -640,16 +638,17 @@ python -m pipeline.run \
   --sport tennis \
   --video_path datasets/tennis/ball_detection/test/my_clip.mp4 \
   --config configs/tennis_config.yaml
+  # --output_dir somewhere/else   (optional, default: outputs.dir)
 ```
 
-Output: `outputs/tennis/stats.json` plus optional `outputs/tennis/overlay.mp4` when `outputs.video.path` is set (ball circle + conf, player bboxes + ids, feet point + court distance, court lines via H⁻¹ or keypoint crosses).
+Output: one folder per video, `outputs/tennis/<analysis id>/` (e.g. `my-clip/` for `My Clip.mp4`), with `stats.json`, `overlay.mp4` when `outputs.video` is on and `heatmaps/` when `outputs.heatmaps` is on. Overlay content: ball circle + conf, player bboxes + ids, feet point + court distance, court lines via H⁻¹ or keypoint crosses. The overlay is encoded in **H.264** (`libx264`, `yuv420p`, `+faststart`) with the ffmpeg shipped by the `imageio-ffmpeg` pip package, so it plays in a browser `<video>` tag (OpenCV's `mp4v` codec does not) and needs no system ffmpeg.
 
 Useful checks after a run:
 
 ```python
 from pipeline.objects.tennis.tennis_analysis import TennisAnalysis
 
-analysis = TennisAnalysis.load_json("outputs/tennis/stats.json")
+analysis = TennisAnalysis.load_json("outputs/tennis/my-clip/stats.json")
 detected = sum(1 for f in analysis.frames if f.ball)
 print(f"{detected}/{len(analysis.frames)} frames with a ball")
 ```

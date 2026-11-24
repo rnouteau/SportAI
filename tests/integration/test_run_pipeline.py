@@ -6,11 +6,12 @@ from collections.abc import Callable
 from pathlib import Path
 
 import cv2
+import imageio_ffmpeg
 import pytest
 
 from pipeline.objects.tennis.tennis_analysis import TennisAnalysis
 from pipeline.render.tennis_overlay import render_overlay_video
-from pipeline.run import run_pipeline
+from pipeline.run import analysis_id, run_pipeline
 from pipeline.video_reader import VideoReader
 from tests.fakes import FakeSceneModel
 from tests.helpers import pipeline_config
@@ -94,59 +95,63 @@ def test_player_stats_select_the_two_players(synthetic_video: Callable[..., Path
         assert player["distance_m"] == pytest.approx(3.9, abs=0.2)
 
 
-# --------------------------------------------------------------------------- heatmaps
-def test_one_heatmap_per_final_player(tmp_path: Path, synthetic_video: Callable[..., Path]) -> None:
+# --------------------------------------------------------------------------- output folder
+def test_analysis_id_is_a_clean_folder_and_url_name() -> None:
+    name = "Fonseca vs Djokovic ｜ Full match ｜ Roland-Garros 2026 [n2zjuuvgkGY]_cut_3354_3847.mp4"
+    assert (
+        analysis_id(name)
+        == "fonseca-vs-djokovic-full-match-roland-garros-2026-n2zjuuvgkgy-_cut_3354_3847"
+    )
+    assert analysis_id("/videos/Clip.mp4") == "clip"
+    assert analysis_id("｜｜.mp4") == "analysis"
+
+
+def test_everything_goes_in_the_analysis_folder(
+    tmp_path: Path, synthetic_video: Callable[..., Path]
+) -> None:
+    video = synthetic_video(n_frames=N_FRAMES, size=(320, 240))  # clip.mp4 → id "clip"
+    outputs = {"dir": str(tmp_path / "out"), "video": True, "heatmaps": True}
+
+    assert run_pipeline("tennis", str(video), _two_players_config(outputs=outputs)) is None
+
+    folder = tmp_path / "out" / "clip"
+    assert sorted(p.name for p in folder.iterdir()) == ["heatmaps", "overlay.mp4", "stats.json"]
+    assert sorted(p.name for p in (folder / "heatmaps").iterdir()) == [
+        "heatmap_player_1.png",
+        "heatmap_player_2.png",
+    ]
+    assert cv2.imread(str(folder / "heatmaps" / "heatmap_player_1.png")) is not None
+    assert TennisAnalysis.load_json(folder / "stats.json").final_stats.players
+
+
+def test_output_dir_argument_wins_over_the_config(
+    tmp_path: Path, synthetic_video: Callable[..., Path]
+) -> None:
+    config = pipeline_config([SCENE], outputs={"dir": str(tmp_path / "from_config")})
+    run_pipeline(
+        "tennis", str(synthetic_video(n_frames=3)), config, output_dir=str(tmp_path / "cli")
+    )
+    assert (tmp_path / "cli" / "clip" / "stats.json").is_file()
+    assert not (tmp_path / "from_config").exists()
+
+
+def test_visual_outputs_are_optional(tmp_path: Path, synthetic_video: Callable[..., Path]) -> None:
+    config = pipeline_config([SCENE], outputs={"dir": str(tmp_path)})
+    run_pipeline("tennis", str(synthetic_video(n_frames=3)), config)
+    assert sorted(p.name for p in (tmp_path / "clip").iterdir()) == ["stats.json"]
+
+
+def test_nothing_is_written_in_test_mode(
+    tmp_path: Path, synthetic_video: Callable[..., Path]
+) -> None:
+    outputs = {"dir": str(tmp_path / "out"), "video": True, "heatmaps": True}
     video = synthetic_video(n_frames=N_FRAMES, size=(320, 240))
-    outputs = {"path": str(tmp_path / "stats.json"), "heatmaps": {"path": str(tmp_path / "maps")}}
-
-    run_pipeline("tennis", str(video), _two_players_config(outputs=outputs), test=False)
-
-    written = sorted(p.name for p in (tmp_path / "maps").iterdir())
-    assert written == ["heatmap_player_1.png", "heatmap_player_2.png"]
-    assert cv2.imread(str(tmp_path / "maps" / "heatmap_player_1.png")) is not None
-
-
-def test_no_heatmap_in_test_mode(tmp_path: Path, synthetic_video: Callable[..., Path]) -> None:
-    video = synthetic_video(n_frames=N_FRAMES, size=(320, 240))
-    outputs = {"path": str(tmp_path / "stats.json"), "heatmaps": {"path": str(tmp_path / "maps")}}
     assert run_pipeline("tennis", str(video), _two_players_config(outputs=outputs), test=True)
-    assert not (tmp_path / "maps").exists()
+    assert not (tmp_path / "out").exists()
 
 
 # --------------------------------------------------------------------------- overlay
-def _overlay_config(tmp_path: Path, with_video: bool) -> tuple[dict, Path, Path]:
-    json_path, overlay_path = tmp_path / "out" / "stats.json", tmp_path / "out" / "overlay.mp4"
-    outputs: dict = {"path": str(json_path)}
-    if with_video:
-        outputs["video"] = {"path": str(overlay_path)}
-    return pipeline_config([SCENE], outputs=outputs), json_path, overlay_path
-
-
-def test_overlay_written_when_configured(
-    tmp_path: Path, synthetic_video: Callable[..., Path]
-) -> None:
-    config, json_path, overlay_path = _overlay_config(tmp_path, with_video=True)
-    assert run_pipeline("tennis", str(synthetic_video(n_frames=3)), config, test=False) is None
-    assert json_path.is_file()
-    assert overlay_path.is_file() and overlay_path.stat().st_size > 0
-
-
-def test_no_overlay_without_video_path(
-    tmp_path: Path, synthetic_video: Callable[..., Path]
-) -> None:
-    config, json_path, overlay_path = _overlay_config(tmp_path, with_video=False)
-    run_pipeline("tennis", str(synthetic_video(n_frames=3)), config, test=False)
-    assert json_path.is_file()
-    assert not overlay_path.exists()
-
-
-def test_no_overlay_in_test_mode(tmp_path: Path, synthetic_video: Callable[..., Path]) -> None:
-    config, _, overlay_path = _overlay_config(tmp_path, with_video=True)
-    assert run_pipeline("tennis", str(synthetic_video(n_frames=3)), config, test=True) is not None
-    assert not overlay_path.exists()
-
-
-def test_render_overlay_video_keeps_size_and_frame_count(
+def test_render_overlay_video_is_h264_with_same_size_and_frames(
     tmp_path: Path, synthetic_video: Callable[..., Path]
 ) -> None:
     reader = VideoReader(str(synthetic_video(n_frames=4)))
@@ -161,6 +166,11 @@ def test_render_overlay_video_keeps_size_and_frame_count(
     written = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
     cap.release()
     assert (written, size) == (4, (reader.width, reader.height))
+
+    # H.264 / yuv420p: what browsers play in a <video> tag (OpenCV's mp4v is not).
+    meta = next(imageio_ffmpeg.read_frames(str(out_path)))
+    assert meta["codec"] == "h264"
+    assert meta["pix_fmt"].startswith("yuv420p")
 
 
 # --------------------------------------------------------------------------- config

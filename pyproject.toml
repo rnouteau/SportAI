@@ -1,7 +1,7 @@
 [tool.ruff]
 line-length = 100
 target-version = "py311"
-src = ["pipeline", "tests", "scripts", "utils"]
+src = ["pipeline", "api", "tests", "scripts", "utils"]
 extend-exclude = [
     "trains",
     "tools",
@@ -24,7 +24,7 @@ ignore = [
 ]
 
 [tool.ruff.lint.isort]
-known-first-party = ["pipeline", "tests", "scripts", "utils"]
+known-first-party = ["pipeline", "api", "tests", "scripts", "utils"]
 
 [tool.ruff.format]
 quote-style = "double"
@@ -34,7 +34,7 @@ line-ending = "auto"
 
 [tool.mypy]
 python_version = "3.11"
-files = ["pipeline"]
+files = ["pipeline", "api"]
 ignore_missing_imports = true
 warn_unused_ignores = true
 show_error_codes = true
@@ -45,7 +45,7 @@ disallow_untyped_defs = false
 
 [tool.coverage.run]
 branch = false
-source = ["pipeline", "tests.evaluation", "tests.baseline"]
+source = ["pipeline", "api", "tests.evaluation", "tests.baseline"]
 omit = [
     "pipeline/models/tennis/tennis_ball_model.py",
     "pipeline/stats/**",
