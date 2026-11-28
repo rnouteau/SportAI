@@ -14,3 +14,7 @@ async function getJson<T>(url: string): Promise<T> {
 export function fetchAnalyses(): Promise<AnalysisSummary[]> {
   return getJson<AnalysisSummary[]>("/api/analyses");
 }
+
+export function fetchAnalysis(id: string): Promise<AnalysisSummary> {
+  return getJson<AnalysisSummary>(`/api/analyses/${encodeURIComponent(id)}`);
+}

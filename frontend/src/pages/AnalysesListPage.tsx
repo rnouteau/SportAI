@@ -1,35 +1,50 @@
 import { useQuery } from "@tanstack/react-query";
-import { Link } from "react-router";
 import { fetchAnalyses } from "../api/client";
+import AnalysisCard from "../components/AnalysisCard";
+import StatusMessage from "../components/StatusMessage";
 
-export default function AnalysesListPage() {
+function AnalysesList() {
   const { data, isPending, isError, error } = useQuery({
     queryKey: ["analyses"],
     queryFn: fetchAnalyses,
   });
 
   if (isPending) {
-    return <p>Loading...</p>;
+    return <StatusMessage>Loading analyses...</StatusMessage>;
   }
 
   if (isError) {
-    return <p>Error: {error.message}</p>;
+    return (
+      <StatusMessage tone="error">
+        Could not load the analyses: {error.message}
+      </StatusMessage>
+    );
   }
 
   if (data.length === 0) {
-    return <p>No analysis yet.</p>;
+    return (
+      <StatusMessage>
+        No analysis yet. Run the pipeline on a video to see it here.
+      </StatusMessage>
+    );
   }
 
   return (
-    <ul>
+    <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
       {data.map((analysis) => (
         <li key={analysis.id}>
-          <Link to={`/analyses/${analysis.id}`}>
-            {analysis.video_name}: {analysis.players.length} player(s),{" "}
-            {analysis.duration_s.toFixed(1)} s
-          </Link>
+          <AnalysisCard analysis={analysis} />
         </li>
       ))}
     </ul>
+  );
+}
+
+export default function AnalysesListPage() {
+  return (
+    <section>
+      <h1 className="mb-6 text-2xl font-bold tracking-tight">Analyses</h1>
+      <AnalysesList />
+    </section>
   );
 }
