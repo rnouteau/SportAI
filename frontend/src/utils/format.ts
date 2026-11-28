@@ -11,8 +11,10 @@ export function formatValue(
 
 /** "9.9 s" under a minute, then "4:05" or "1:02:09" (rounded to the second). */
 export function formatDuration(seconds: number): string {
-  if (seconds < 60) {
-    return `${seconds.toFixed(1)} s`;
+  const tenths = Math.round(seconds * 10) / 10;
+  if (tenths < 60) {
+    // Rounded first, so that 59.97 s does not show as "60.0 s"
+    return `${tenths.toFixed(1)} s`;
   }
   const total = Math.round(seconds);
   const hours = Math.floor(total / 3600);

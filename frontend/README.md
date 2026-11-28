@@ -40,6 +40,19 @@ with the API running, whenever `api/schemas.py` changes:
 npm run gen:types
 ```
 
+## Tests
+
+Vitest runs the tests in Node, with jsdom as a fake browser and Testing Library to
+render the components and query them as a user would (by role, label, text):
+
+```bash
+npm test             # run once (what the CI does)
+npm run test:watch   # re-run on every save
+```
+
+Test files sit next to the code they test (`format.ts` / `format.test.ts`). The page
+tests replace `fetch` with a fake API (`src/test/render.tsx`): no server is needed.
+
 ## Other scripts
 
 | command | what it does |

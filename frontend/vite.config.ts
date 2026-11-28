@@ -1,3 +1,4 @@
+/// <reference types="vitest/config" />
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import { defineConfig } from "vite";
@@ -11,5 +12,10 @@ export default defineConfig({
       "/api": "http://127.0.0.1:8000",
       "/files": "http://127.0.0.1:8000",
     },
+  },
+  test: {
+    // A fake browser (document, window...) in Node, so components can be rendered
+    environment: "jsdom",
+    setupFiles: ["./src/test/setup.ts"],
   },
 });
