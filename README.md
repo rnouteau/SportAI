@@ -2,7 +2,7 @@
 
 [![codecov](https://codecov.io/gh/rnouteau/SportAI/graph/badge.svg)](https://codecov.io/gh/rnouteau/SportAI)
 
-SportAI is a sports video analysis pipeline. It runs detection / tracking models on a video, stores every prediction in a typed JSON document (`Analysis`), then computes statistics and non-regression metrics on top of that document.
+SportAI is a sports video analysis pipeline. It runs detection / tracking models on a video, stores every prediction in a typed JSON document (`Analysis`), then computes statistics and non-regression metrics on top of that document. A read-only **FastAPI** server and a **React + TypeScript** web app show the results (overlay video, player stats, heatmaps) in the browser.
 
 The first implemented sport is **tennis**, with a TrackNet TorchScript **ball** detector, a YOLO **player** detector, and a YOLO11 pose **court** keypoint model (14 ITF points → frame homography). The architecture is designed so that new sports, models and stats can be added without rewriting the orchestrator.
 
@@ -20,14 +20,15 @@ The first implemented sport is **tennis**, with a TrackNet TorchScript **ball** 
 8. [Configuration](#8-configuration)
 9. [Installation](#9-installation)
 10. [Running the pipeline](#10-running-the-pipeline)
-11. [Tools](#11-tools)
-12. [Training and exporting a model](#12-training-and-exporting-a-model)
-13. [Tests and baselines](#13-tests-and-baselines)
-14. [Lint and pre-commit](#14-lint-and-pre-commit)
-15. [GitHub Actions](#15-github-actions)
-16. [Hugging Face assets](#16-hugging-face-assets)
-17. [How to extend the project](#17-how-to-extend-the-project)
-18. [Troubleshooting](#18-troubleshooting)
+11. [Web app: API and frontend](#11-web-app-api-and-frontend)
+12. [Tools](#12-tools)
+13. [Training and exporting a model](#13-training-and-exporting-a-model)
+14. [Tests and baselines](#14-tests-and-baselines)
+15. [Lint and pre-commit](#15-lint-and-pre-commit)
+16. [GitHub Actions](#16-github-actions)
+17. [Hugging Face assets](#17-hugging-face-assets)
+18. [How to extend the project](#18-how-to-extend-the-project)
+19. [Troubleshooting](#19-troubleshooting)
 
 ---
 
@@ -40,7 +41,8 @@ Given a tennis video and a YAML config, SportAI:
 3. Instantiates every model listed in the config (e.g. `TennisBallModel`, `TennisPlayerModel`, `TennisCourtModel`).
 4. Runs each model. Models write predictions into the analysis frames (`frame.ball`, `frame.players`, `frame.homography`).
 5. Optionally runs stats on the filled analysis.
-6. Saves the full analysis as a JSON file, or returns the dict when used from tests.
+6. Saves the full analysis as a JSON file (plus the overlay video and the player heatmaps when enabled), or returns the dict when used from tests.
+7. The API (`api/`) serves the saved analyses, and the web app (`frontend/`) displays them.
 
 The important design choice: **the analysis is a tree of typed dataclasses with a stable JSON format**. `TennisAnalysis` holds `TennisFrame` objects, which hold `TennisPlayerAtFrame`, `TennisBall` and `TennisHomography` objects. Models and stats read and write plain attributes (`frame.ball = TennisBall(position=[x, y], confidence=c)`). The dict only exists at the edges: `Analysis.from_dict` / `load_json` build the objects from JSON, `to_dict` / `save_json` turn them back into JSON.
 
@@ -84,6 +86,18 @@ SportAI/
 │           ├── tennis_player_side_stat.py      # player.side ("near" / "far") on every frame
 │           ├── tennis_player_selector_stat.py  # keep the 2 players, player_id + final_stats
 │           └── tennis_player_movement_stat.py  # distance_m / mean & max speed (km/h)
+│   └── render/                       # Outputs drawn from the analysis
+│       ├── tennis_overlay.py         # overlay.mp4 (H.264): ball, players, court
+│       └── tennis_heatmap.py         # heatmaps/heatmap_player_<id>.png
+├── api/                              # Read-only FastAPI server over outputs/
+│   ├── main.py                       # create_app: routes, CORS, /files static mount
+│   ├── analyses.py                   # Read the analysis folders (no FastAPI)
+│   └── schemas.py                    # Pydantic response models (→ OpenAPI)
+├── frontend/                         # React + TypeScript web app (Vite) — see frontend/README.md
+│   ├── src/api/                      # client.ts (fetch) + types.ts (generated from OpenAPI)
+│   ├── src/pages/                    # One component per route (list, detail, 404)
+│   ├── src/components/               # Cards, video player, layout...
+│   └── src/utils/                    # Formatting helpers
 
 
 ├── tests/
@@ -101,7 +115,7 @@ SportAI/
 │   │   └── court_evaluation.py       # CourtEvaluator (PCK / OKS / keypoint F1, still images)
 │   ├── unit/                         # Fast pure-logic tests (marked `unit` automatically)
 │   │   ├── objects/  models/  stats/  render/  pipeline/
-│   │   ├── evaluation/  nrt/  tools/
+│   │   ├── evaluation/  nrt/  tools/  api/
 │   ├── integration/                  # Synthetic video + fake models (marked `integration`)
 │   ├── baselines/tennis/             # One JSON per NRT suite (<suite id>.json)
 │   ├── configs/nrt/tennis/           # One YAML per NRT suite (<suite id>.yaml)
@@ -133,7 +147,8 @@ SportAI/
 │   ├── actions/publish-wiki/         # Composite action: render + push wiki
 │   └── workflows/
 │       ├── pr-tests.yml              # CI: unit/lint 3.11–3.12 + integration/coverage 3.11 + nrt
-│       └── nrt-nightly.yml           # Full NRT on main (cron + manual)
+│       ├── nrt-nightly.yml           # Full NRT on main (cron + manual)
+│       └── frontend.yml              # CI: frontend lint + tests + build
 ├── pyproject.toml                    # Ruff + mypy + coverage config
 ├── .pre-commit-config.yaml           # Local hooks (ruff, mypy, file hygiene)
 ├── requirements.txt
@@ -146,6 +161,8 @@ SportAI/
 | Area | Role | Imported by production? |
 |------|------|-------------------------|
 | `pipeline/` | Run models on videos, produce analysis JSON | Yes |
+| `api/` | Serve the saved analyses (JSON + video / images) | Reads `outputs/` and the `pipeline.objects` dataclasses |
+| `frontend/` | Web app displaying the analyses | Talks to the API over HTTP only |
 | `trains/` | Train and export model weights | No (produces `.pt` artefacts only) |
 | `tools/` | Human annotation / video cutting GUIs | No |
 | `tests/unit/` | Fast pure-logic tests (no video / model / HF) | CI job `unit` (matrix 3.11–3.12) |
@@ -153,6 +170,7 @@ SportAI/
 | Coverage | unit + integration via `pytest-cov`, fail under 60 % | CI job `coverage` (3.11) + Codecov |
 | `tests/nrt/` | Slow model non-regression vs baseline | CI when inference paths change (3.11) |
 | Lint / pre-commit | Ruff + mypy (+ file hygiene hooks) | CI job `lint` (matrix 3.11–3.12) |
+| `frontend/` checks | ESLint + Vitest + type check / build | Workflow `frontend.yml` |
 
 Production never imports training code. The only link between `trains/` and `pipeline/` is weight files (TorchScript `.pt` for the ball; Ultralytics `.pt` for players and court). Ball TrackNet training/export lives outside this repo today (pipeline only loads the exported TorchScript).
 
@@ -268,7 +286,8 @@ run_pipeline(sport, video_path, config)
    │      load_class(name)(config)
    │      stat.run(video_reader, analysis)    → before video_reader.release()
    │
-   └─ analysis.save_json(...)   or return analysis.to_dict() if test=True
+   └─ <outputs.dir>/<analysis id>/stats.json (+ overlay.mp4, heatmaps/ per config)
+          or return analysis.to_dict() if test=True (nothing written)
 ```
 
 CLI:
@@ -585,6 +604,7 @@ Asset resolution (`tests/assets.py`):
 - Python 3.11+ (CI matrix: 3.11 / 3.12 on `unit` + `lint`; NRT and local default: 3.11)
 - (Optional) CUDA-capable GPU for faster inference
 - `ffmpeg` in `PATH` if you use the precise mode of `video_cuter.py`
+- (Web app only) [Node.js](https://nodejs.org/) LTS, which includes `npm`
 
 ### Setup
 
@@ -655,7 +675,40 @@ print(f"{detected}/{len(analysis.frames)} frames with a ball")
 
 ---
 
-## 11. Tools
+## 11. Web app: API and frontend
+
+Two parts, each in its own terminal:
+
+```bash
+# 1. API, from the repository root (reads outputs/tennis; SPORTAI_OUTPUTS changes it)
+uvicorn api.main:app --reload          # interactive docs: http://localhost:8000/docs
+
+# 2. Web app, from frontend/
+cd frontend
+npm install                            # once, and after every package.json change
+npm run dev                            # http://localhost:5173
+```
+
+**API** (`api/`) — read-only, it never runs the pipeline:
+
+| Route | Returns |
+|-------|---------|
+| `GET /api/analyses` | Summary of every folder of `outputs/tennis/` holding a `stats.json` (sorted by id) |
+| `GET /api/analyses/{id}` | Summary of one analysis, `404` if unknown or invalid id |
+| `GET /files/{id}/...` | The files of an analysis (`overlay.mp4`, `heatmaps/*.png`), with HTTP range requests so the video can be seeked |
+
+A summary holds the video name, fps, frame count, duration, `overlay_url` and, per final player, the distance, mean / max speed and `heatmap_url` (a URL is `null` when the file does not exist). Ids are checked (`[A-Za-z0-9_-]+`) so a request can never read outside the outputs folder. CORS allows the Vite dev server (`http://localhost:5173`).
+
+**Frontend** (`frontend/`) — React 19, TypeScript, Vite, React Router, TanStack Query, Tailwind CSS:
+
+- `/` lists the analyses as cards; `/analyses/<id>` shows the overlay video, then one card per player (stats + heatmap).
+- In development, Vite forwards `/api` and `/files` to the API (`frontend/vite.config.ts`), so the browser only talks to Vite.
+- `frontend/src/api/types.ts` is generated from the API's OpenAPI schema: run `npm run gen:types` (API running) after changing `api/schemas.py`.
+- Tests: `npm test` (Vitest + Testing Library, fake API, no server needed). Details in [`frontend/README.md`](frontend/README.md).
+
+---
+
+## 12. Tools
 
 ### Ball annotator — `tools/ball_anotator.py`
 
@@ -757,7 +810,7 @@ python utils/video_downloader.py
 
 ---
 
-## 12. Training and exporting a model
+## 13. Training and exporting a model
 
 Training packages under `trains/` are **not** imported by `pipeline/`.
 
@@ -853,7 +906,7 @@ datasets/tennis/court_detection/test/
   *.txt              # sibling labels, or labels/ with same stems
 ```
 
-Each label line: `cls xc yc w h` then `x y v` × 14 (normalized), same as the NDJSON import. Metrics are described in §13.
+Each label line: `cls xc yc w h` then `x y v` × 14 (normalized), same as the NDJSON import. Metrics are described in §14.
 
 ```bash
 $env:SPORTAI_DEVICE="cpu"   # or cuda
@@ -866,7 +919,7 @@ Reports: `outputs/tests/tennis_court_detection/report.md` (+ `.json`). Baseline:
 
 ---
 
-## 13. Tests and baselines
+## 14. Tests and baselines
 
 Three levels, one marker each (see `pytest.ini`). `unit` and `integration` are added automatically from the folder (`tests/conftest.py`): no decorator to write.
 
@@ -885,10 +938,11 @@ python -m pytest tests/nrt -m nrt -s -rs               # every NRT suite
 
 ### Layout of the tests
 
-- `tests/unit/<area>/` mirrors the code: `objects/` (serialization, court schema, keypoint smoother), `models/`, `stats/`, `render/`, `pipeline/`, `evaluation/`, `nrt/` (harness, baseline, wiki), `tools/` (annotators).
+- `tests/unit/<area>/` mirrors the code: `objects/` (serialization, court schema, keypoint smoother), `models/`, `stats/`, `render/`, `pipeline/`, `evaluation/`, `nrt/` (harness, baseline, wiki), `tools/` (annotators), `api/` (routes and summaries, with FastAPI's `TestClient`).
 - `tests/unit/objects/test_serialization.py` locks the JSON format: lossless round trip of `tests/fixtures/tennis_analysis_sample.json`, empty frames, `None` fields left out of a player, the old `"position"` key read as `bbox`.
 - Shared builders are in `tests/helpers.py` (`make_synthetic_video`, `make_tennis_analysis`, `pipeline_config`, `write_mot_clip`) and `tests/fakes.py` (`FakeVideoReader`, `FakeBallModel`, `FakeTrackingModel`, `FakeSceneModel`, `BallCountStat`). Fake models are loaded by `run_pipeline` from their dotted name, e.g. `tests.fakes.FakeTrackingModel`. Fixture `synthetic_video(n_frames=...)` writes a tiny mp4 in `tmp_path`.
 - `tests/integration/test_run_pipeline.py` runs the 3 player stats on a fake tracker + homography and checks `player_id`, `side` and `final_stats`.
+- Frontend tests are not pytest: they live next to the code in `frontend/src/` (`*.test.ts(x)`) and run with `npm test` (see [`frontend/README.md`](frontend/README.md)).
 
 ### Coverage (`pytest-cov`)
 
@@ -1012,7 +1066,7 @@ Then commit the files of `tests/baselines/tennis/`. Reports: `outputs/tests/<sui
 
 ---
 
-## 14. Lint and pre-commit
+## 15. Lint and pre-commit
 
 Config lives in [`pyproject.toml`](pyproject.toml) (Ruff + mypy) and [`.pre-commit-config.yaml`](.pre-commit-config.yaml).
 
@@ -1039,14 +1093,15 @@ The CI jobs **`unit`**, **`integration`**, **`coverage`** and **`lint`** run in 
 
 ---
 
-## 15. GitHub Actions
+## 16. GitHub Actions
 
-Two workflows:
+Three workflows:
 
 | Workflow | File | Role |
 |----------|------|------|
 | **Tests** | [`.github/workflows/pr-tests.yml`](.github/workflows/pr-tests.yml) | `unit`/`lint` matrix 3.11–3.12; `integration`/`coverage` on 3.11; NRT filtered |
 | **NRT Nightly** | [`.github/workflows/nrt-nightly.yml`](.github/workflows/nrt-nightly.yml) | Full NRT on `main` every night (Python 3.11, no path filter) |
+| **Frontend** | [`.github/workflows/frontend.yml`](.github/workflows/frontend.yml) | `npm ci`, ESLint, Vitest, type check + build of `frontend/` (only when `frontend/` changes) |
 
 Model scores from the latest NRT on `main` are published to the repository **Wiki → Home** page (auto-generated charts from ball + player + court `report.json` files).
 
@@ -1089,7 +1144,7 @@ flowchart LR
 **3. `coverage` (always, parallel, Python 3.11 only)**
 
 - Re-runs unit + integration with `pytest-cov`
-- Fails if total coverage < 60 % (omits TrackNet model + stats; see §13)
+- Fails if total coverage < 60 % (omits TrackNet model + stats; see §14)
 - Uploads `coverage.xml` artefact + Codecov
 
 **4. `lint` (always, parallel)**
@@ -1172,7 +1227,7 @@ If `WIKI_TOKEN` is missing or `report.json` was not produced, the publish step w
 
 ---
 
-## 16. Hugging Face assets
+## 17. Hugging Face assets
 
 Large binaries are not in git (see `.gitignore`: `*.mp4`, `*.csv`, `*.pt`, `datasets/`).
 
@@ -1216,7 +1271,7 @@ Keep test clips short (5–15 seconds). TrackNet on CPU is only a few frames per
 
 ---
 
-## 17. How to extend the project
+## 18. How to extend the project
 
 ### Add a new model
 
@@ -1253,7 +1308,7 @@ No change to `run.py` for a new *tennis* model.
 
 ---
 
-## 18. Troubleshooting
+## 19. Troubleshooting
 
 | Symptom | Likely cause | Fix |
 |---------|--------------|-----|
@@ -1312,4 +1367,11 @@ python -m pytest tests/nrt/tennis -m nrt -s -rs
 
 # Refresh baseline after an intentional model change
 python -m pytest tests/nrt/tennis -m nrt -s --update-baseline
+
+# Web app: API (repo root) + frontend (frontend/), in two terminals
+uvicorn api.main:app --reload
+cd frontend; npm install; npm run dev     # http://localhost:5173
+
+# Frontend checks (from frontend/, same as CI)
+npm run lint; npm test; npm run build
 ```
