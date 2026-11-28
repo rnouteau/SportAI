@@ -127,12 +127,17 @@ SportAI/
 ├── models/                           # Local pipeline / annotator weights (gitignored)
 │   ├── based_models/                 # e.g. yolo11s.pt for player annotator pre-label
 │   └── trained_models/               # Optional stable copies for pipeline `weight:` paths
-├── tools/                            # Manual annotation / video helpers
-│   ├── ball_anotator.py              # Click ball positions on frames
-│   ├── player_annotator.py           # Draw player bboxes (+ YOLO pre-annotate)
-│   ├── court_yolo.py                 # Shared YOLO-pose encode/decode for court labels
-│   ├── court_annotator.py            # Label court keypoints → .txt (+ CSV) + overlay
-│   └── video_cuter.py                # Cut clips / export a still frame
+├── tools/                            # Manual annotation / video helpers (run as scripts)
+│   ├── ball_annotator/
+│   │   ├── ball_anotator.py          # Ball position + events (serve / hit / bounce) per frame
+│   │   └── ball_annotations.py       # Annotation model + CSV I/O (no GUI, unit-tested)
+│   ├── player_annotator/
+│   │   ├── player_annotator.py       # Player boxes + track ids (+ YOLO / ByteTrack pre-label)
+│   │   └── player_annotations.py     # Annotation model + CSV / MOT I/O (no GUI, unit-tested)
+│   ├── court_annotator/
+│   │   ├── court_annotator.py        # Label court keypoints → .txt (+ CSV) + overlay
+│   │   └── court_yolo.py             # Shared YOLO-pose encode/decode for court labels
+│   └── video_cuter/video_cuter.py    # Cut clips / export a still frame
 ├── trains/                           # Training code (not imported by pipeline)
 │   └── tennis/
 │       ├── player_detection/         # YOLO player (prepare + train + MLflow)
@@ -642,7 +647,7 @@ pip install -r requirements-test.txt
 | Ball (TorchScript) | `models/TENNIS_BALL_MODEL_04_11_2026.pt` | Loaded by `TennisBallModel` via `torch.jit.load` |
 | Players (YOLO) | `models/TENNIS_PLAYER_MODEL_17_11_2026.pt` | Loaded by `TennisPlayerModel` (HF: `tennis/player/...`) |
 | Court (YOLO pose) | `models/TENNIS_COURT_MODEL_18_11_2026.pt` | Loaded by `TennisCourtModel` (HF: `tennis/court/...`) |
-| Player YOLO pretrained (annotator) | `models/based_models/yolo11s.pt` | Used by `tools/player_annotator.py` pre-label |
+| Player YOLO pretrained (annotator) | `models/based_models/yolo11s.pt` | Used by `tools/player_annotator/player_annotator.py` pre-label |
 | Player train based / stable | `trains/tennis/player_detection/models/{based_models,trained_models}/` | From `configs/train.yaml` |
 | Court train based / stable | `trains/tennis/court_detection/models/{based_models,trained_models}/` | e.g. `yolo11s-pose.pt`, `tennis_court_yolo11s_pose.pt` |
 
@@ -710,44 +715,49 @@ A summary holds the video name, fps, frame count, duration, `overlay_url` and, p
 
 ## 12. Tools
 
-### Ball annotator — `tools/ball_anotator.py`
+### Ball annotator — `tools/ball_annotator/ball_anotator.py`
 
-GUI to label ball positions frame by frame.
+GUI to label, frame by frame, the ball position and the ball events (ground truth of the ball NRT and of the future event detection).
 
 ```bash
-python tools/ball_anotator.py --video_path path/to/clip.mp4
+python tools/ball_annotator/ball_anotator.py --video_path path/to/clip.mp4
 ```
 
 | Key | Action |
 |-----|--------|
-| Left click | Set ball position on the current frame |
+| Left click | Set the ball position on the current frame |
+| `d` | Delete the ball of the current frame |
 | `←` / `→` | Previous / next frame |
-| `d` | Delete annotation on current frame |
-| `s` | Export CSV next to the video (`clip.csv`) |
-| `q` | Quit |
+| `Shift` + `←` / `→` | Jump 10 frames |
+| `1` / `2` / `3` | Event `serve` / `hit` / `bounce` on the current frame (same key again: remove it) |
+| `0` | Remove the event of the current frame |
+| `n` / `p` | Go to the next / previous event |
+| `s` | Save the CSV next to the video (`clip.csv`) |
+| `q` | Quit (asks to save if there are unsaved changes) |
 
-CSV format:
+The bottom bar shows the event of the frame, the count of each event, and a timeline of the clip with one tick per event. An existing `clip.csv` is reloaded when the tool opens.
+
+CSV format (one row per video frame):
 
 ```
-frame,x,y
-0,706.0,480.0
-1,704.0,484.0
-2,,
-3,703.0,493.0
+frame,x,y,event
+0,706.0,480.0,serve
+1,704.0,484.0,
+2,,,
+3,703.0,493.0,bounce
 ```
 
-- Annotated frames have `x,y`.
-- Frames without a ball (or not annotated as present) are exported as empty cells → read as `NaN` by pandas.
-- The test suite evaluates **all** CSV rows. `NaN` ground truth + prediction = true negative; `NaN` ground truth + prediction present = false positive.
+- `x,y` in **video pixels**, empty when the ball is not visible. The frame is scaled to fit the 1280×720 view, and clicks are converted back, so any resolution works.
+- `event` is empty or one of `serve` (the server hits the ball), `hit` (any other racket contact: groundstroke, volley, return, smash), `bounce` (the ball touches the ground), set on the frame of the contact. An event can be set on a frame where the ball is hidden (no `x,y`).
+- Every row counts as reviewed: the ball suite evaluates **all** rows. `NaN` ground truth + no prediction = true negative; `NaN` ground truth + prediction = false positive. The ball evaluator ignores the `event` column.
+- Old CSVs (`frame,x,y`) are still read, with no event. The data model and CSV I/O live in `ball_annotations.py` (tested in `tests/unit/tools/test_ball_annotations.py`).
 
-**Coordinate note:** the annotator displays the frame centered in a 1280×720 canvas without resizing. Pixel coordinates match the video only when the video is 1280×720. For other resolutions, convert using the canvas offset `(640 - width/2, 360 - height/2)`.
-
-### Player annotator — `tools/player_annotator.py`
+### Player annotator — `tools/player_annotator/player_annotator.py`
 
 GUI to label player bounding boxes. If no CSV exists next to the video, it pre-annotates with YOLO (`models/based_models/yolo11s.pt`, max 2 boxes per frame).
 
 ```bash
-python tools/player_annotator.py --video_path path/to/clip.mp4
+python tools/player_annotator/player_annotator.py --video_path path/to/clip.mp4
 ```
 
 | Key | Action |
@@ -765,12 +775,12 @@ frame,class_id,x0,y0,x1,y1
 0,0,120.0,200.0,340.0,560.0
 ```
 
-### Court annotator — `tools/court_annotator.py`
+### Court annotator — `tools/court_annotator/court_annotator.py`
 
 GUI to label **14 ITF tennis court keypoints** on a still image. Schema / flip map live only in [`pipeline/objects/tennis/tennis_court_schema.py`](pipeline/objects/tennis/tennis_court_schema.py) (shared with train prepare/import and NRT eval). Named points + fixed edges; `v` projects via `TennisCourtSchema().estimate_court_to_image`.
 
 ```bash
-python tools/court_annotator.py --image_path path/to/frame.png
+python tools/court_annotator/court_annotator.py --image_path path/to/frame.png
 ```
 
 | Key | Action |
@@ -783,14 +793,14 @@ python tools/court_annotator.py --image_path path/to/frame.png
 | `v` | Homography overlay (green lines + crosses) in an OpenCV window |
 | `q` | Quit |
 
-Reload prefers `{stem}.txt` if present, else legacy `_court.csv`. Encode/decode helpers: [`tools/court_yolo.py`](tools/court_yolo.py).
+Reload prefers `{stem}.txt` if present, else legacy `_court.csv`. Encode/decode helpers: [`tools/court_annotator/court_yolo.py`](tools/court_annotator/court_yolo.py).
 
 Point order (guided, far→near): far baseline (DL/SL/SR/DR) → far service + T → near service + T → near baseline (DL/SL/SR/DR). No net-centre keypoint (net is drawn only in the overlay).
 
-### Video cuter — `tools/video_cuter.py`
+### Video cuter — `tools/video_cuter/video_cuter.py`
 
 ```bash
-python tools/video_cuter.py --video_path path/to/match.mp4
+python tools/video_cuter/video_cuter.py --video_path path/to/match.mp4
 ```
 
 Select a start/end frame with the two sliders, then use the File menu:
@@ -1316,7 +1326,7 @@ No change to `run.py` for a new *tennis* model.
 | `FileNotFoundError` on weights in CI | Missing / wrong HF path or token | Verify `weights.filename`, repo visibility, and `HF_TOKEN`. |
 | Baseline comparison fails after switching GPU ↔ CPU | Different floating-point paths | Regenerate the baseline on the same device class as CI (`cpu`). |
 | `Results differ from the baseline` after a tiny code change | Expected (model / post-process / I/O edits) | Inspect `report.md`, then `--update-baseline` on CPU if the new behaviour is wanted. |
-| Annotator coordinates disagree with predictions | Video not 1280×720 (ball annotator canvas) | Convert canvas coords using the centering offset, or resize/export clips at 1280×720. |
+| Annotator coordinates disagree with predictions | Ball CSV made before the annotator scaled the frame (canvas coords, video not 1280×720) | Re-open the clip in `tools/ball_annotator/ball_anotator.py` and fix the positions; new CSVs are in video pixels. |
 | NRT still slow on CPU | TrackNet on CPU is heavy (even with `iter_triplets` / `iter_frames`) | Prefer a short clip; GPU locally; CI stays on CPU for baseline stability. |
 | NRT job skipped even though model paths changed | Upstream jobs red, or path filter | `unit` / `integration` / `coverage` / `lint` must all be green. Path filter does **not** include `pipeline/objects/**`. |
 | `player.court` is `None` | No `homography.matrix`, or stat missing | Need ≥4 confident court kpts for H; enable `pipeline.stats.tennis.TennisLegsCourtStat` in YAML. |
@@ -1342,7 +1352,7 @@ pip install -r requirements-test.txt
 python -m pipeline.run --sport tennis --video_path clip.mp4 --config configs/tennis_config.yaml
 
 # Annotate a clip
-python tools/ball_anotator.py --video_path clip.mp4
+python tools/ball_annotator/ball_anotator.py --video_path clip.mp4
 
 # Fast unit tests (no video / model)
 python -m pytest tests/unit -m unit -q
